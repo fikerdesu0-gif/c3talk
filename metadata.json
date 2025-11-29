@@ -1,0 +1,5 @@
+{
+  "name": "C3TALK",
+  "description": "A translation bridge for Amharic and Oromo speakers to communicate in English via WhatsApp. Features voice note transcription and instant reply translation.",
+  "requestFramePermissions": []
+}
