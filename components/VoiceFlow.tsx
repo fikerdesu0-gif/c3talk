@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Upload, FileAudio, RefreshCw, Loader2, Play } from 'lucide-react';
 import { Header } from './Header';
 import { ReplySection } from './ReplySection';
@@ -8,28 +8,64 @@ import { fileToGenerativePart, processIncomingAudio } from '../services/geminiSe
 interface VoiceFlowProps {
   language: Language;
   onBack: () => void;
+  autoLoadShared?: boolean;
 }
 
-export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack }) => {
+export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoadShared }) => {
   const [processingState, setProcessingState] = useState<ProcessingState>({ status: 'idle' });
   const [transcription, setTranscription] = useState('');
   const [translation, setTranslation] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (!file) return;
+  useEffect(() => {
+    if (autoLoadShared) {
+      loadSharedFile();
+    }
+  }, [autoLoadShared]);
 
+  const loadSharedFile = async () => {
+    setProcessingState({ status: 'processing', message: 'Loading shared file...' });
+    try {
+      const cache = await caches.open('share-cache');
+      const response = await cache.match('shared-file');
+      
+      if (response) {
+        const blob = await response.blob();
+        // Convert Blob to File (approximate)
+        const file = new File([blob], "shared_audio", { type: blob.type || 'audio/ogg' });
+        
+        await processFile(file);
+        
+        // Clean up cache
+        await cache.delete('shared-file');
+      } else {
+        setProcessingState({ status: 'idle' });
+      }
+    } catch (e) {
+      console.error("Error loading shared file", e);
+      setProcessingState({ status: 'error', message: 'Could not load shared file.' });
+    }
+  };
+
+  const processFile = async (file: File) => {
     if (!file.type.startsWith('audio/')) {
-        setProcessingState({ status: 'error', message: 'Please select an audio file.' });
-        return;
+        // Some whatsapp audio shares might be application/octet-stream or similar, try to be lenient if name indicates audio
+        if (file.name.match(/\.(mp3|wav|ogg|m4a|opus)$/i)) {
+            // Proceed
+        } else {
+            setProcessingState({ status: 'error', message: 'Please select a valid audio file.' });
+            return;
+        }
     }
 
-    setProcessingState({ status: 'processing' });
+    setProcessingState({ status: 'processing', message: 'Analyzing Audio...' });
 
     try {
       const base64 = await fileToGenerativePart(file);
-      const result = await processIncomingAudio(base64, file.type, language);
+      // Determine mimeType. If generic, assume audio/mp3 as fallback for Gemini
+      const mimeType = file.type || 'audio/mp3';
+      
+      const result = await processIncomingAudio(base64, mimeType, language);
       
       setTranscription(result.transcription);
       setTranslation(result.translation);
@@ -37,6 +73,12 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack }) => {
     } catch (e) {
         setProcessingState({ status: 'error', message: 'Failed to process audio. Please try again.' });
     }
+  };
+
+  const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    await processFile(file);
   };
 
   return (
@@ -81,7 +123,7 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack }) => {
         {processingState.status === 'processing' && (
            <div className="flex flex-col items-center justify-center h-[70vh] space-y-6">
               <Loader2 className="w-12 h-12 text-[#E50914] animate-spin" />
-              <p className="text-lg font-medium text-neutral-400">Processing Audio...</p>
+              <p className="text-lg font-medium text-neutral-400">{processingState.message || 'Processing...'}</p>
            </div>
         )}
 

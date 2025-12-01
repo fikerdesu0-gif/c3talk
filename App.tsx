@@ -9,9 +9,18 @@ import { Header } from './components/Header';
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.ONBOARDING);
   const [language, setLanguage] = useState<Language | null>(null);
+  const [hasSharedContent, setHasSharedContent] = useState(false);
 
-  // Load saved language from local storage on mount
   useEffect(() => {
+    // Check for shared content redirection
+    const params = new URLSearchParams(window.location.search);
+    if (params.get('action') === 'share-voice') {
+      setHasSharedContent(true);
+      // Clean URL without refresh
+      window.history.replaceState({}, '', window.location.pathname);
+    }
+
+    // Load saved language
     const savedLang = localStorage.getItem('c3talk_lang');
     if (savedLang) {
       setLanguage(savedLang as Language);
@@ -19,10 +28,20 @@ const App: React.FC = () => {
     }
   }, []);
 
+  // Effect to automatically route to VoiceFlow if a share was detected and language is set
+  useEffect(() => {
+    if (hasSharedContent && language) {
+      setMode(AppMode.VOICE_FLOW);
+    }
+  }, [hasSharedContent, language]);
+
   const handleLanguageSelect = (lang: Language) => {
     setLanguage(lang);
     localStorage.setItem('c3talk_lang', lang);
-    setMode(AppMode.HOME);
+    // If we have shared content, the useEffect above will handle routing to VoiceFlow
+    if (!hasSharedContent) {
+      setMode(AppMode.HOME);
+    }
   };
 
   const resetSettings = () => {
@@ -33,7 +52,16 @@ const App: React.FC = () => {
 
   // Render Flows
   if (mode === AppMode.VOICE_FLOW && language) {
-    return <VoiceFlow language={language} onBack={() => setMode(AppMode.HOME)} />;
+    return (
+      <VoiceFlow 
+        language={language} 
+        onBack={() => {
+          setHasSharedContent(false); // Reset shared state on back
+          setMode(AppMode.HOME);
+        }} 
+        autoLoadShared={hasSharedContent}
+      />
+    );
   }
 
   if (mode === AppMode.TEXT_FLOW && language) {
