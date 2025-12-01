@@ -1,0 +1,35 @@
+{
+  "short_name": "C3TALK",
+  "name": "C3TALK Translator",
+  "icons": [
+    {
+      "src": "https://placehold.co/192x192/000000/E50914.png?text=C3",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "https://placehold.co/512x512/000000/E50914.png?text=C3",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "theme_color": "#000000",
+  "background_color": "#000000",
+  "orientation": "portrait",
+  "share_target": {
+    "action": "/share-target/",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "files": [
+        {
+          "name": "media",
+          "accept": ["audio/*", "audio/mp3", "audio/wav", "audio/ogg", "audio/m4a", "audio/mpeg", "audio/amr"]
+        }
+      ]
+    }
+  }
+}

@@ -8,7 +8,7 @@
     <title>C3TALK</title>
     
     <!-- PWA Manifest & Icons -->
-    <link rel="manifest" href="manifest.json" />
+    <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="https://placehold.co/192x192/000000/E50914.png?text=C3">
     
     <script src="https://cdn.tailwindcss.com"></script>
@@ -64,7 +64,7 @@
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          navigator.serviceWorker.register('./sw.js')
+          navigator.serviceWorker.register('/sw.js')
             .then(registration => {
               console.log('SW registered');
             })
