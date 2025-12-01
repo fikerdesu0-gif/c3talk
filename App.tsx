@@ -1,15 +1,38 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, MessageSquareText, ChevronRight } from 'lucide-react';
+import { Mic, MessageSquareText, ChevronRight, Download } from 'lucide-react';
 import { AppMode, Language } from './types';
 import { LanguageSelector } from './components/LanguageSelector';
 import { VoiceFlow } from './components/VoiceFlow';
 import { TextFlow } from './components/TextFlow';
 import { Header } from './components/Header';
 
+// Interface for the PWA install event
+interface BeforeInstallPromptEvent extends Event {
+  prompt: () => Promise<void>;
+  userChoice: Promise<{ outcome: 'accepted' | 'dismissed' }>;
+}
+
 const App: React.FC = () => {
   const [mode, setMode] = useState<AppMode>(AppMode.ONBOARDING);
   const [language, setLanguage] = useState<Language | null>(null);
   const [hasSharedContent, setHasSharedContent] = useState(false);
+  const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+
+  useEffect(() => {
+    // Capture the PWA install prompt event
+    const handleBeforeInstallPrompt = (e: Event) => {
+      // Prevent the mini-infobar from appearing on mobile
+      e.preventDefault();
+      // Stash the event so it can be triggered later.
+      setInstallPrompt(e as BeforeInstallPromptEvent);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
 
   useEffect(() => {
     // Check for shared content redirection
@@ -50,6 +73,18 @@ const App: React.FC = () => {
       setMode(AppMode.ONBOARDING);
   };
 
+  const handleInstallClick = async () => {
+    if (!installPrompt) return;
+    // Show the install prompt
+    await installPrompt.prompt();
+    // Wait for the user to respond to the prompt
+    const choiceResult = await installPrompt.userChoice;
+    if (choiceResult.outcome === 'accepted') {
+      console.log('User accepted the install prompt');
+    }
+    setInstallPrompt(null);
+  };
+
   // Render Flows
   if (mode === AppMode.VOICE_FLOW && language) {
     return (
@@ -81,6 +116,17 @@ const App: React.FC = () => {
                 </h2>
                 <p className="text-neutral-400 text-lg">Choose an action to start.</p>
             </div>
+
+            {/* Install Button - Only shows if browser allows it */}
+            {installPrompt && (
+              <button
+                onClick={handleInstallClick}
+                className="w-full py-4 bg-[#E50914] text-white rounded-3xl font-bold shadow-[0_0_20px_rgba(229,9,20,0.3)] flex items-center justify-center gap-3 active:scale-95 transition-all"
+              >
+                <Download size={24} className="stroke-[3]" />
+                <span className="text-lg">Install App</span>
+              </button>
+            )}
 
             <button
                 onClick={() => setMode(AppMode.VOICE_FLOW)}
