@@ -24,3 +24,10 @@ export interface ProcessingState {
   status: 'idle' | 'processing' | 'success' | 'error';
   message?: string;
 }
+
+declare global {
+  interface Window {
+    dataLayer: any[];
+    gtag: (...args: any[]) => void;
+  }
+}

@@ -11,6 +11,17 @@
     <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="https://placehold.co/192x192/000000/E50914.png?text=C3">
     
+    <!-- Google tag (gtag.js) -->
+    <script async src="https://www.googletagmanager.com/gtag/js?id=G-RZLNZ1TP76"></script>
+    <script>
+      window.dataLayer = window.dataLayer || [];
+      function gtag(){dataLayer.push(arguments);}
+      gtag('js', new Date());
+
+      // Disable automatic page view measurement to handle it manually for SPA routing
+      gtag('config', 'G-RZLNZ1TP76', { send_page_view: false });
+    </script>
+    
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
       /* Mobile-first layout helper */

@@ -5,6 +5,7 @@ import { LanguageSelector } from './components/LanguageSelector';
 import { VoiceFlow } from './components/VoiceFlow';
 import { TextFlow } from './components/TextFlow';
 import { Header } from './components/Header';
+import { trackPageView } from './services/analytics';
 
 // Interface for the PWA install event
 interface BeforeInstallPromptEvent extends Event {
@@ -57,6 +58,28 @@ const App: React.FC = () => {
       setMode(AppMode.VOICE_FLOW);
     }
   }, [hasSharedContent, language]);
+
+  // Analytics: Track Virtual Page Views based on AppMode
+  useEffect(() => {
+    let virtualPath = '/';
+    switch (mode) {
+      case AppMode.ONBOARDING:
+        virtualPath = '/onboarding';
+        break;
+      case AppMode.HOME:
+        virtualPath = '/home';
+        break;
+      case AppMode.VOICE_FLOW:
+        virtualPath = '/voice-translation';
+        break;
+      case AppMode.TEXT_FLOW:
+        virtualPath = '/text-translation';
+        break;
+      default:
+        virtualPath = '/';
+    }
+    trackPageView(virtualPath);
+  }, [mode]);
 
   const handleLanguageSelect = (lang: Language) => {
     setLanguage(lang);
