@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, MessageSquareText, ChevronRight, Download } from 'lucide-react';
+import { Mic, MessageSquareText, ChevronRight, Download, LogOut } from 'lucide-react';
 import { AppMode, Language } from './types';
 import { LanguageSelector } from './components/LanguageSelector';
 import { VoiceFlow } from './components/VoiceFlow';
 import { TextFlow } from './components/TextFlow';
 import { Header } from './components/Header';
+import { LoginScreen } from './components/LoginScreen';
 import { trackPageView } from './services/analytics';
+import { auth } from './services/firebase';
+import { onAuthStateChanged, signOut } from 'firebase/auth';
 
 // Interface for the PWA install event
 interface BeforeInstallPromptEvent extends Event {
@@ -14,17 +17,40 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const App: React.FC = () => {
-  const [mode, setMode] = useState<AppMode>(AppMode.ONBOARDING);
+  const [mode, setMode] = useState<AppMode>(AppMode.LOGIN);
   const [language, setLanguage] = useState<Language | null>(null);
   const [hasSharedContent, setHasSharedContent] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isAuthLoading, setIsAuthLoading] = useState(true);
+
+  // Authentication Listener
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setIsAuthLoading(false);
+      if (user) {
+        setIsAuthenticated(true);
+        // Check for saved language preferences or onboarding state
+        const savedLang = localStorage.getItem('c3talk_lang');
+        if (savedLang) {
+          setLanguage(savedLang as Language);
+          setMode(AppMode.HOME);
+        } else {
+          setMode(AppMode.ONBOARDING);
+        }
+      } else {
+        setIsAuthenticated(false);
+        setMode(AppMode.LOGIN);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
 
   useEffect(() => {
     // Capture the PWA install prompt event
     const handleBeforeInstallPrompt = (e: Event) => {
-      // Prevent the mini-infobar from appearing on mobile
       e.preventDefault();
-      // Stash the event so it can be triggered later.
       setInstallPrompt(e as BeforeInstallPromptEvent);
     };
 
@@ -40,29 +66,24 @@ const App: React.FC = () => {
     const params = new URLSearchParams(window.location.search);
     if (params.get('action') === 'share-voice') {
       setHasSharedContent(true);
-      // Clean URL without refresh
       window.history.replaceState({}, '', window.location.pathname);
-    }
-
-    // Load saved language
-    const savedLang = localStorage.getItem('c3talk_lang');
-    if (savedLang) {
-      setLanguage(savedLang as Language);
-      setMode(AppMode.HOME);
     }
   }, []);
 
   // Effect to automatically route to VoiceFlow if a share was detected and language is set
   useEffect(() => {
-    if (hasSharedContent && language) {
+    if (isAuthenticated && hasSharedContent && language) {
       setMode(AppMode.VOICE_FLOW);
     }
-  }, [hasSharedContent, language]);
+  }, [hasSharedContent, language, isAuthenticated]);
 
-  // Analytics: Track Virtual Page Views based on AppMode
+  // Analytics
   useEffect(() => {
     let virtualPath = '/';
     switch (mode) {
+      case AppMode.LOGIN:
+        virtualPath = '/login';
+        break;
       case AppMode.ONBOARDING:
         virtualPath = '/onboarding';
         break;
@@ -84,7 +105,6 @@ const App: React.FC = () => {
   const handleLanguageSelect = (lang: Language) => {
     setLanguage(lang);
     localStorage.setItem('c3talk_lang', lang);
-    // If we have shared content, the useEffect above will handle routing to VoiceFlow
     if (!hasSharedContent) {
       setMode(AppMode.HOME);
     }
@@ -96,17 +116,32 @@ const App: React.FC = () => {
       setMode(AppMode.ONBOARDING);
   };
 
+  const handleLogout = async () => {
+    await signOut(auth);
+    localStorage.removeItem('c3talk_lang');
+    setLanguage(null);
+  };
+
   const handleInstallClick = async () => {
     if (!installPrompt) return;
-    // Show the install prompt
     await installPrompt.prompt();
-    // Wait for the user to respond to the prompt
     const choiceResult = await installPrompt.userChoice;
-    if (choiceResult.outcome === 'accepted') {
-      console.log('User accepted the install prompt');
-    }
     setInstallPrompt(null);
   };
+
+  // Loading Screen
+  if (isAuthLoading) {
+    return (
+        <div className="flex items-center justify-center h-screen bg-black text-white">
+            <div className="animate-pulse text-[#E50914] font-bold text-xl">C3TALK...</div>
+        </div>
+    );
+  }
+
+  // Auth Guard
+  if (!isAuthenticated) {
+    return <LoginScreen />;
+  }
 
   // Render Flows
   if (mode === AppMode.VOICE_FLOW && language) {
@@ -114,7 +149,7 @@ const App: React.FC = () => {
       <VoiceFlow 
         language={language} 
         onBack={() => {
-          setHasSharedContent(false); // Reset shared state on back
+          setHasSharedContent(false);
           setMode(AppMode.HOME);
         }} 
         autoLoadShared={hasSharedContent}
@@ -140,7 +175,7 @@ const App: React.FC = () => {
                 <p className="text-neutral-400 text-lg">Choose an action to start.</p>
             </div>
 
-            {/* Install Button - Only shows if browser allows it */}
+            {/* Install Button */}
             {installPrompt && (
               <button
                 onClick={handleInstallClick}
@@ -193,9 +228,18 @@ const App: React.FC = () => {
                 </div>
             </button>
             
-            <p className="text-xs text-neutral-600 text-center uppercase tracking-widest pt-8">
-                Active Language: <span className="text-[#E50914]">{language}</span>
-            </p>
+            <div className="flex items-center justify-between pt-8 px-2">
+                 <p className="text-xs text-neutral-600 uppercase tracking-widest">
+                    Active: <span className="text-[#E50914]">{language}</span>
+                </p>
+                <button 
+                    onClick={handleLogout}
+                    className="flex items-center gap-2 text-xs text-neutral-500 hover:text-white uppercase tracking-widest"
+                >
+                    <LogOut size={14} />
+                    <span>Logout</span>
+                </button>
+            </div>
         </div>
       </div>
     );

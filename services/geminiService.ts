@@ -1,8 +1,30 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Language } from "../types";
+import { db, auth } from "./firebase";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 // Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// Helper to log usage to Firestore
+const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, target: string) => {
+  try {
+    const user = auth.currentUser;
+    if (user) {
+      await addDoc(collection(db, "translations"), {
+        userId: user.uid,
+        phoneNumber: user.phoneNumber,
+        type,
+        sourceLanguage: source,
+        targetLanguage: target,
+        timestamp: serverTimestamp(),
+      });
+    }
+  } catch (e) {
+    console.error("Failed to log translation stats", e);
+    // Don't block the user if logging fails
+  }
+};
 
 // Helper to convert file to base64
 export const fileToGenerativePart = async (file: File): Promise<string> => {
@@ -65,7 +87,12 @@ export const processIncomingAudio = async (
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
     
-    return JSON.parse(text);
+    const result = JSON.parse(text);
+    
+    // Log to Firebase
+    await logTranslation('audio', 'English', targetLang);
+    
+    return result;
   } catch (error) {
     console.error("Audio processing error:", error);
     throw new Error("Failed to process audio. Please try again.");
@@ -99,6 +126,10 @@ export const processIncomingText = async (
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
+    
+    // Log to Firebase
+    await logTranslation('text', 'English', targetLang);
+
     return JSON.parse(resultText);
   } catch (error) {
     console.error("Text processing error:", error);
@@ -136,6 +167,10 @@ export const translateReply = async (
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
+    
+    // Log to Firebase
+    await logTranslation('reply', sourceLang, 'English');
+
     return JSON.parse(resultText);
   } catch (error) {
     console.error("Reply translation error:", error);

@@ -1,4 +1,5 @@
 export enum AppMode {
+  LOGIN = 'LOGIN',
   ONBOARDING = 'ONBOARDING',
   HOME = 'HOME',
   VOICE_FLOW = 'VOICE_FLOW',
@@ -29,5 +30,7 @@ declare global {
   interface Window {
     dataLayer: any[];
     gtag: (...args: any[]) => void;
+    confirmationResult: any; // For Firebase Phone Auth
+    recaptchaVerifier: any; // For Firebase RecaptchaVerifier
   }
 }
