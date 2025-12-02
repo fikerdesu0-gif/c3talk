@@ -1,9 +1,9 @@
 const CACHE_NAME = 'c3talk-v2';
 const SHARE_CACHE = 'share-cache';
 const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json'
+  './',
+  './index.html',
+  './manifest.json'
 ];
 
 self.addEventListener('install', event => {
@@ -47,10 +47,10 @@ self.addEventListener('fetch', event => {
           }
           
           // Redirect to the app with a query param indicating a share action
-          return Response.redirect('/?action=share-voice', 303);
+          return Response.redirect('./?action=share-voice', 303);
         } catch (err) {
           console.error('Share target failed', err);
-          return Response.redirect('/', 303);
+          return Response.redirect('./', 303);
         }
       })()
     );

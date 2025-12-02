@@ -31,8 +31,14 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
       
       if (response) {
         const blob = await response.blob();
-        // Convert Blob to File (approximate)
-        const file = new File([blob], "shared_audio", { type: blob.type || 'audio/ogg' });
+        // Try to detect extension from blob type or fallback
+        let fileName = "shared_audio";
+        // WhatsApp shares often come as application/octet-stream or audio/opus
+        if (blob.type.includes('ogg') || blob.type.includes('opus')) fileName += ".opus";
+        else if (blob.type.includes('mp4') || blob.type.includes('m4a')) fileName += ".m4a";
+        else fileName += ".mp3";
+
+        const file = new File([blob], fileName, { type: blob.type });
         
         await processFile(file);
         
@@ -47,31 +53,50 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
     }
   };
 
+  const getMimeType = (file: File): string => {
+    const ext = file.name.split('.').pop()?.toLowerCase();
+    
+    // Strict mapping for Gemini compatibility
+    switch (ext) {
+      case 'mp3': return 'audio/mp3';
+      case 'wav': return 'audio/wav';
+      case 'aac': return 'audio/aac';
+      case 'flac': return 'audio/flac';
+      // Gemini treats ogg/opus similarly
+      case 'ogg': 
+      case 'opus': return 'audio/ogg';
+      case 'm4a':
+      case 'mp4': return 'audio/mp4';
+      case 'amr': return 'audio/amr';
+      default:
+        // If file.type is valid audio, use it, otherwise default to mp3
+        return file.type.startsWith('audio/') ? file.type : 'audio/mp3';
+    }
+  };
+
   const processFile = async (file: File) => {
-    if (!file.type.startsWith('audio/')) {
-        // Some whatsapp audio shares might be application/octet-stream or similar, try to be lenient if name indicates audio
-        if (file.name.match(/\.(mp3|wav|ogg|m4a|opus)$/i)) {
-            // Proceed
-        } else {
-            setProcessingState({ status: 'error', message: 'Please select a valid audio file.' });
-            return;
-        }
+    // Basic validation
+    if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|ogg|m4a|opus|amr|aac)$/i)) {
+         setProcessingState({ status: 'error', message: 'Please select a valid audio file.' });
+         return;
     }
 
-    setProcessingState({ status: 'processing', message: 'Analyzing Audio...' });
+    setProcessingState({ status: 'processing', message: 'Analyzing Voice Note...' });
 
     try {
       const base64 = await fileToGenerativePart(file);
-      // Determine mimeType. If generic, assume audio/mp3 as fallback for Gemini
-      const mimeType = file.type || 'audio/mp3';
+      const mimeType = getMimeType(file);
       
+      console.log(`Processing file: ${file.name} as ${mimeType}`);
+
       const result = await processIncomingAudio(base64, mimeType, language);
       
       setTranscription(result.transcription);
       setTranslation(result.translation);
       setProcessingState({ status: 'success' });
-    } catch (e) {
-        setProcessingState({ status: 'error', message: 'Failed to process audio. Please try again.' });
+    } catch (e: any) {
+        console.error("Processing failed", e);
+        setProcessingState({ status: 'error', message: e.message || 'Failed to process audio.' });
     }
   };
 
@@ -112,7 +137,7 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
              </button>
              <input 
                 type="file" 
-                accept="audio/*" 
+                accept="audio/*,.opus,.ogg,.m4a,.mp3,.wav,.aac" 
                 ref={fileInputRef} 
                 onChange={handleFileSelect} 
                 className="hidden" 

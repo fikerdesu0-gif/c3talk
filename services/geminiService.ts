@@ -26,6 +26,18 @@ const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, 
   }
 };
 
+// Helper to clean JSON string from Markdown backticks
+const cleanAndParseJSON = (text: string) => {
+  try {
+    // Remove ```json ... ``` or just ``` ... ```
+    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
+    return JSON.parse(cleaned);
+  } catch (e) {
+    console.error("JSON Parse Error on text:", text);
+    throw new Error("Failed to parse response from AI.");
+  }
+};
+
 // Helper to convert file to base64
 export const fileToGenerativePart = async (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
@@ -51,11 +63,15 @@ export const processIncomingAudio = async (
 ): Promise<{ transcription: string; translation: string }> => {
   try {
     const prompt = `
-      You are an expert translator helper.
-      1. Transcribe the following English audio message exactly as spoken.
-      2. Translate that English transcription into ${targetLang}.
+      You are an expert translator.
+      1. Transcribe the spoken English audio. The audio might be low quality (WhatsApp Voice Note). Do your best to transcribe the meaning accurately.
+      2. Translate the transcription into ${targetLang}.
       
-      Return the result in JSON format.
+      Return strictly a JSON object with this structure:
+      {
+        "transcription": "English text...",
+        "translation": "${targetLang} text..."
+      }
     `;
 
     const response = await ai.models.generateContent({
@@ -87,7 +103,7 @@ export const processIncomingAudio = async (
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
     
-    const result = JSON.parse(text);
+    const result = cleanAndParseJSON(text);
     
     // Log to Firebase
     await logTranslation('audio', 'English', targetLang);
@@ -95,7 +111,7 @@ export const processIncomingAudio = async (
     return result;
   } catch (error) {
     console.error("Audio processing error:", error);
-    throw new Error("Failed to process audio. Please try again.");
+    throw new Error("Failed to process audio. Ensure the file is valid audio.");
   }
 };
 
@@ -107,7 +123,7 @@ export const processIncomingText = async (
   targetLang: Language
 ): Promise<{ translation: string }> => {
   try {
-    const prompt = `Translate the following English text into ${targetLang}. Return JSON.`;
+    const prompt = `Translate the following English text into ${targetLang}. Return strictly JSON.`;
 
     const response = await ai.models.generateContent({
       model: 'gemini-2.5-flash',
@@ -127,10 +143,12 @@ export const processIncomingText = async (
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
     
+    const result = cleanAndParseJSON(resultText);
+
     // Log to Firebase
     await logTranslation('text', 'English', targetLang);
 
-    return JSON.parse(resultText);
+    return result;
   } catch (error) {
     console.error("Text processing error:", error);
     throw new Error("Failed to translate text.");
@@ -147,7 +165,7 @@ export const translateReply = async (
   try {
     const prompt = `
       Translate the following ${sourceLang} text into clear, professional English suitable for a WhatsApp reply.
-      Return JSON.
+      Return strictly JSON.
     `;
 
     const response = await ai.models.generateContent({
@@ -168,10 +186,12 @@ export const translateReply = async (
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
     
+    const result = cleanAndParseJSON(resultText);
+    
     // Log to Firebase
     await logTranslation('reply', sourceLang, 'English');
 
-    return JSON.parse(resultText);
+    return result;
   } catch (error) {
     console.error("Reply translation error:", error);
     throw new Error("Failed to translate reply.");

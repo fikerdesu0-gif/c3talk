@@ -69,7 +69,10 @@ export const LoginScreen: React.FC = () => {
       if (err.code === 'auth/invalid-phone-number') msg = 'Invalid phone number format.';
       else if (err.code === 'auth/too-many-requests') msg = 'Too many requests. Please try again later.';
       else if (err.code === 'auth/internal-error') {
-          msg = 'Internal Setup Error. If you are the developer, please ensure this domain is added to "Authorized Domains" in Firebase Authentication settings.';
+          msg = 'Internal Setup Error. If you are the developer, ensure this domain is added to "Authorized Domains" in Firebase Console.';
+      }
+      else if (err.code === 'auth/billing-not-enabled') {
+          msg = 'Project Billing Required. Please upgrade your Firebase project to the "Blaze" Plan to enable SMS.';
       }
       else if (err.message) msg = err.message;
 
