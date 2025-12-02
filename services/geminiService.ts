@@ -4,7 +4,7 @@ import { db, auth } from "./firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
 // Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: import.meta.env.VITE_API_KEY });
 
 // Retry Helper for 503/Overloaded errors
 const withRetry = async <T>(operation: () => Promise<T>, retries = 3, baseDelay = 2000): Promise<T> => {
@@ -121,12 +121,12 @@ export const processIncomingAudio = async (
 
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
-    
+
     const result = cleanAndParseJSON(text);
-    
+
     // Log to Firebase
     await logTranslation('audio', 'English', targetLang);
-    
+
     return result;
   } catch (error) {
     console.error("Audio processing error:", error);
@@ -161,7 +161,7 @@ export const processIncomingText = async (
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
-    
+
     const result = cleanAndParseJSON(resultText);
 
     // Log to Firebase
@@ -204,9 +204,9 @@ export const translateReply = async (
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
-    
+
     const result = cleanAndParseJSON(resultText);
-    
+
     // Log to Firebase
     await logTranslation('reply', sourceLang, 'English');
 
