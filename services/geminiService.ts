@@ -124,8 +124,10 @@ export const processIncomingAudio = async (
 
     const result = cleanAndParseJSON(text);
 
-    // Log to Firebase
-    await logTranslation('audio', 'English', targetLang);
+    // Log to Firebase (non-blocking, fire-and-forget)
+    logTranslation('audio', 'English', targetLang).catch(err =>
+      console.warn('Failed to log translation:', err)
+    );
 
     return result;
   } catch (error) {
@@ -164,8 +166,10 @@ export const processIncomingText = async (
 
     const result = cleanAndParseJSON(resultText);
 
-    // Log to Firebase
-    await logTranslation('text', 'English', targetLang);
+    // Log to Firebase (non-blocking, fire-and-forget)
+    logTranslation('text', 'English', targetLang).catch(err =>
+      console.warn('Failed to log translation:', err)
+    );
 
     return result;
   } catch (error) {
@@ -207,8 +211,10 @@ export const translateReply = async (
 
     const result = cleanAndParseJSON(resultText);
 
-    // Log to Firebase
-    await logTranslation('reply', sourceLang, 'English');
+    // Log to Firebase (non-blocking, fire-and-forget)
+    logTranslation('reply', sourceLang, 'English').catch(err =>
+      console.warn('Failed to log translation:', err)
+    );
 
     return result;
   } catch (error) {
