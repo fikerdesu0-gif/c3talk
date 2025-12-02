@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { RecaptchaVerifier, signInWithPhoneNumber } from "firebase/auth";
+import { RecaptchaVerifier, signInWithPhoneNumber, signInAnonymously } from "firebase/auth";
 import { auth } from "../services/firebase";
-import { Loader2, Phone, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { Loader2, Phone, ArrowRight, ShieldCheck, AlertCircle, User } from 'lucide-react';
 
 export const LoginScreen: React.FC = () => {
   const [phoneNumber, setPhoneNumber] = useState('');
@@ -69,10 +69,10 @@ export const LoginScreen: React.FC = () => {
       if (err.code === 'auth/invalid-phone-number') msg = 'Invalid phone number format.';
       else if (err.code === 'auth/too-many-requests') msg = 'Too many requests. Please try again later.';
       else if (err.code === 'auth/internal-error') {
-          msg = 'Internal Setup Error. If you are the developer, ensure this domain is added to "Authorized Domains" in Firebase Console.';
+          msg = 'Internal Setup Error. Ensure this domain is authorized in Firebase Console.';
       }
       else if (err.code === 'auth/billing-not-enabled') {
-          msg = 'Project Billing Required. Please upgrade your Firebase project to the "Blaze" Plan to enable SMS.';
+          msg = 'SMS requires billing. Try "Continue as Guest" below.';
       }
       else if (err.message) msg = err.message;
 
@@ -104,6 +104,23 @@ export const LoginScreen: React.FC = () => {
     } catch (err: any) {
       console.error(err);
       setError('Invalid code. Please try again.');
+      setLoading(false);
+    }
+  };
+
+  const handleGuestLogin = async () => {
+    setLoading(true);
+    setError('');
+    try {
+      await signInAnonymously(auth);
+    } catch (err: any) {
+      console.error("Guest Auth Error:", err);
+      if (err.code === 'auth/operation-not-allowed') {
+        setError('Enable "Anonymous" in Firebase Console > Authentication.');
+      } else {
+        setError('Guest login failed. Please try again.');
+      }
+    } finally {
       setLoading(false);
     }
   };
@@ -151,6 +168,24 @@ export const LoginScreen: React.FC = () => {
                         </>
                     )}
                 </button>
+                
+                <div className="relative py-2">
+                    <div className="absolute inset-0 flex items-center">
+                        <span className="w-full border-t border-neutral-800" />
+                    </div>
+                    <div className="relative flex justify-center text-xs uppercase">
+                        <span className="bg-black px-2 text-neutral-500">Or continue with</span>
+                    </div>
+                </div>
+
+                <button
+                    onClick={handleGuestLogin}
+                    disabled={loading}
+                    className="w-full py-4 bg-neutral-900 border border-neutral-800 text-neutral-400 hover:text-white hover:border-neutral-700 rounded-2xl font-bold transition-all flex items-center justify-center gap-2"
+                >
+                    <User size={18} />
+                    <span>Guest Mode</span>
+                </button>
             </div>
         ) : (
             <div className="space-y-4 w-full">
@@ -182,7 +217,7 @@ export const LoginScreen: React.FC = () => {
         )}
 
         {error && (
-            <div className="text-red-500 text-sm bg-red-900/10 p-4 rounded-xl border border-red-900/30 flex items-start gap-2 text-left">
+            <div className="text-red-500 text-sm bg-red-900/10 p-4 rounded-xl border border-red-900/30 flex items-start gap-2 text-left animate-in slide-in-from-bottom-2">
                 <AlertCircle className="shrink-0 mt-0.5" size={16} />
                 <span>{error}</span>
             </div>

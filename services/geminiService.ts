@@ -6,6 +6,25 @@ import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 // Initialize Gemini Client
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
+// Retry Helper for 503/Overloaded errors
+const withRetry = async <T>(operation: () => Promise<T>, retries = 3, baseDelay = 2000): Promise<T> => {
+  for (let i = 0; i < retries; i++) {
+    try {
+      return await operation();
+    } catch (error: any) {
+      const isOverloaded = error.status === 503 || error.code === 503 || error.message?.includes('overloaded') || error.status === 429;
+      if (isOverloaded && i < retries - 1) {
+        const delay = baseDelay * Math.pow(2, i);
+        console.warn(`Gemini API busy (Attempt ${i + 1}/${retries}). Retrying in ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      throw error;
+    }
+  }
+  throw new Error("API Request failed after retries");
+};
+
 // Helper to log usage to Firestore
 const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, target: string) => {
   try {
@@ -64,7 +83,7 @@ export const processIncomingAudio = async (
   try {
     const prompt = `
       You are an expert translator.
-      1. Transcribe the spoken English audio. The audio might be low quality (WhatsApp Voice Note). Do your best to transcribe the meaning accurately.
+      1. Transcribe the spoken English audio. The audio might be low quality (WhatsApp Voice Note) or contain noise. Do your best to transcribe the meaning accurately.
       2. Translate the transcription into ${targetLang}.
       
       Return strictly a JSON object with this structure:
@@ -74,7 +93,7 @@ export const processIncomingAudio = async (
       }
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: {
         parts: [
@@ -98,7 +117,7 @@ export const processIncomingAudio = async (
           required: ["transcription", "translation"]
         }
       }
-    });
+    }));
 
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
@@ -111,7 +130,7 @@ export const processIncomingAudio = async (
     return result;
   } catch (error) {
     console.error("Audio processing error:", error);
-    throw new Error("Failed to process audio. Ensure the file is valid audio.");
+    throw new Error("Failed to process audio. The service might be busy or the file format unsupported.");
   }
 };
 
@@ -125,7 +144,7 @@ export const processIncomingText = async (
   try {
     const prompt = `Translate the following English text into ${targetLang}. Return strictly JSON.`;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: { parts: [{ text: `Text: "${text}"\n\n${prompt}` }] },
       config: {
@@ -138,7 +157,7 @@ export const processIncomingText = async (
           required: ["translation"]
         }
       }
-    });
+    }));
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
@@ -168,7 +187,7 @@ export const translateReply = async (
       Return strictly JSON.
     `;
 
-    const response = await ai.models.generateContent({
+    const response = await withRetry(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: { parts: [{ text: `Original (${sourceLang}): "${text}"\n\n${prompt}` }] },
       config: {
@@ -181,7 +200,7 @@ export const translateReply = async (
           required: ["translation"]
         }
       }
-    });
+    }));
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
