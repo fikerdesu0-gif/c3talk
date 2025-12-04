@@ -16,8 +16,8 @@ export default defineConfig(({ mode }) => {
 
   return {
     plugins: [react()],
-    // CRITICAL: Set base to './' so all generated asset paths are relative.
-    base: './',
+    // CRITICAL: Set base to '/' for Cloudflare production. Relative paths './' can cause MIME type errors.
+    base: '/',
     define: {
       // Inject the API Key into the code. 
       // This maps your GEMINI_API_KEY from Cloudflare to process.env.API_KEY in the React app.
