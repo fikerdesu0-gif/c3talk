@@ -3,8 +3,20 @@ import { Language } from "../types";
 import { db, auth } from "./firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 
-// Initialize Gemini Client
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+// Initialize Gemini Client Lazily
+// This prevents the app from crashing on load if the API key is missing (e.g. during build or initial setup)
+let aiInstance: GoogleGenAI | null = null;
+
+const getAI = () => {
+  if (!aiInstance) {
+    const key = process.env.API_KEY;
+    if (!key) {
+      throw new Error("Gemini API Key is missing. Please check your environment variables.");
+    }
+    aiInstance = new GoogleGenAI({ apiKey: key });
+  }
+  return aiInstance;
+};
 
 // Retry Helper for 503/Overloaded errors
 const withRetry = async <T>(operation: () => Promise<T>, retries = 3, baseDelay = 2000): Promise<T> => {
@@ -81,6 +93,7 @@ export const processIncomingAudio = async (
   targetLang: Language
 ): Promise<{ transcription: string; translation: string }> => {
   try {
+    const ai = getAI();
     const prompt = `
       You are an expert translator.
       1. Transcribe the spoken English audio. The audio might be low quality (WhatsApp Voice Note) or contain noise. Do your best to transcribe the meaning accurately.
@@ -142,6 +155,7 @@ export const processIncomingText = async (
   targetLang: Language
 ): Promise<{ translation: string }> => {
   try {
+    const ai = getAI();
     const prompt = `Translate the following English text into ${targetLang}. Return strictly JSON.`;
 
     const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
@@ -182,6 +196,7 @@ export const translateReply = async (
   sourceLang: Language
 ): Promise<{ translation: string }> => {
   try {
+    const ai = getAI();
     const prompt = `
       Translate the following ${sourceLang} text into clear, professional English suitable for a WhatsApp reply.
       Return strictly JSON.
