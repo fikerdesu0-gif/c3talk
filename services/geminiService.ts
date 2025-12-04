@@ -1,4 +1,4 @@
-import { GoogleGenAI, Type } from "@google/genai";
+import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language } from "../types";
 import { db, auth } from "./firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
@@ -93,7 +93,7 @@ export const processIncomingAudio = async (
       }
     `;
 
-    const response = await withRetry(() => ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: {
         parts: [
@@ -144,7 +144,7 @@ export const processIncomingText = async (
   try {
     const prompt = `Translate the following English text into ${targetLang}. Return strictly JSON.`;
 
-    const response = await withRetry(() => ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: { parts: [{ text: `Text: "${text}"\n\n${prompt}` }] },
       config: {
@@ -187,7 +187,7 @@ export const translateReply = async (
       Return strictly JSON.
     `;
 
-    const response = await withRetry(() => ai.models.generateContent({
+    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
       model: 'gemini-2.5-flash',
       contents: { parts: [{ text: `Original (${sourceLang}): "${text}"\n\n${prompt}` }] },
       config: {
