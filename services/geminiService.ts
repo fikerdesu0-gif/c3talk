@@ -38,7 +38,7 @@ const withRetry = async <T>(operation: () => Promise<T>, retries = 3, baseDelay 
 };
 
 // Helper to log usage to Firestore
-const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, target: string) => {
+const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, target: string, original: string, translated: string) => {
   try {
     const user = auth.currentUser;
     if (user) {
@@ -48,6 +48,8 @@ const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, 
         type,
         sourceLanguage: source,
         targetLanguage: target,
+        original: original || '',
+        translated: translated || '',
         timestamp: serverTimestamp(),
       });
     }
@@ -134,12 +136,12 @@ export const processIncomingAudio = async (
 
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
-    
+
     const result = cleanAndParseJSON(text);
-    
+
     // Log to Firebase
-    await logTranslation('audio', 'English', targetLang);
-    
+    logTranslation('audio', 'English', targetLang, result.transcription, result.translation);
+
     return result;
   } catch (error) {
     console.error("Audio processing error:", error);
@@ -175,11 +177,11 @@ export const processIncomingText = async (
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
-    
+
     const result = cleanAndParseJSON(resultText);
 
     // Log to Firebase
-    await logTranslation('text', 'English', targetLang);
+    logTranslation('text', 'English', targetLang, text, result.translation);
 
     return result;
   } catch (error) {
@@ -219,11 +221,11 @@ export const translateReply = async (
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
-    
+
     const result = cleanAndParseJSON(resultText);
-    
+
     // Log to Firebase
-    await logTranslation('reply', sourceLang, 'English');
+    logTranslation('reply', sourceLang, 'English', text, result.translation);
 
     return result;
   } catch (error) {
