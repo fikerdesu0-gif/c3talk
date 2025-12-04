@@ -1,7 +1,7 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language } from "../types";
 import { db, auth } from "./firebase";
-import { collection, addDoc, serverTimestamp } from "firebase/firestore";
+import { collection, setDoc, doc, serverTimestamp } from "firebase/firestore";
 
 // Initialize Gemini Client Lazily
 // This prevents the app from crashing on load if the API key is missing (e.g. during build or initial setup)
@@ -37,21 +37,47 @@ const withRetry = async <T>(operation: () => Promise<T>, retries = 3, baseDelay 
   throw new Error("API Request failed after retries");
 };
 
+// Simple hash function for generating consistent IDs
+const simpleHash = (str: string): string => {
+  let hash = 0;
+  for (let i = 0; i < str.length; i++) {
+    const char = str.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash; // Convert to 32-bit integer
+  }
+  return Math.abs(hash).toString(36);
+};
+
 // Helper to log usage to Firestore
+// Uses content-based ID to prevent duplicates and enable caching
 const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, target: string, original: string, translated: string) => {
   try {
     const user = auth.currentUser;
     if (user) {
-      await addDoc(collection(db, "translations"), {
+      // Create a unique ID based on content to enable caching
+      // This prevents duplicate API calls for the same translation
+      const contentKey = `${type}_${source}_${target}_${original}`;
+      const docId = simpleHash(contentKey);
+
+      // Prepare document data
+      const docData: any = {
         userId: user.uid,
-        phoneNumber: user.phoneNumber,
         type,
         sourceLanguage: source,
         targetLanguage: target,
         original: original || '',
         translated: translated || '',
         timestamp: serverTimestamp(),
-      });
+        lastUsed: serverTimestamp(), // Track when it was last used
+      };
+
+      // Only include phoneNumber if it exists (to avoid Firebase permission errors)
+      if (user.phoneNumber) {
+        docData.phoneNumber = user.phoneNumber;
+      }
+
+      // Use setDoc with merge to update if exists, create if not
+      await setDoc(doc(db, "translations", docId), docData, { merge: true });
     }
   } catch (e) {
     console.error("Failed to log translation stats", e);

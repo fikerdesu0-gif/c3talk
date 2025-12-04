@@ -4,7 +4,6 @@ export enum AppMode {
   HOME = 'HOME',
   VOICE_FLOW = 'VOICE_FLOW',
   TEXT_FLOW = 'TEXT_FLOW',
-  HISTORY = 'HISTORY',
 }
 
 export enum Language {
