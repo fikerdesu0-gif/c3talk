@@ -8,7 +8,7 @@
     <title>C3TALK</title>
     
     <!-- PWA Manifest & Icons -->
-    <link rel="manifest" href="./manifest.json" />
+    <link rel="manifest" href="/manifest.json" />
     <link rel="apple-touch-icon" href="https://placehold.co/192x192/000000/E50914.png?text=C3">
     
     <!-- Google tag (gtag.js) -->
@@ -88,13 +88,13 @@
   </head>
   <body>
     <div id="root"></div>
-    <!-- Entry point for the application - Using relative path to match vite.config.ts -->
-    <script type="module" src="./index.tsx"></script>
+    <!-- Entry point for the application - Using absolute path to match Cloudflare structure -->
+    <script type="module" src="/index.tsx"></script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
-          // Use relative path to avoid origin mismatch in preview environments
-          navigator.serviceWorker.register('./sw.js')
+          // Use absolute path for robustness in production
+          navigator.serviceWorker.register('/sw.js')
             .then(registration => {
               console.log('SW registered');
             })
