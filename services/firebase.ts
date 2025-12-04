@@ -4,12 +4,12 @@ import { getFirestore } from "firebase/firestore";
 
 // Configuration from Firebase Console
 const firebaseConfig = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
+  apiKey: "AIzaSyD9v0QKWRtMVaHHfhho5OcVYkCjOAxUya4",
+  authDomain: "c3talk-b19ef.firebaseapp.com",
+  projectId: "c3talk-b19ef",
+  storageBucket: "c3talk-b19ef.firebasestorage.app",
+  messagingSenderId: "434910550026",
+  appId: "1:434910550026:web:de814a9b6d16d10bc327f3",
   measurementId: "G-N7RNN0678G"
 };
 

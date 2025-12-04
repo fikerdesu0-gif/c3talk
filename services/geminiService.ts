@@ -9,7 +9,7 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAI = () => {
   if (!aiInstance) {
-    const key = import.meta.env.VITE_GEMINI_API_KEY;
+    const key = process.env.API_KEY;
     if (!key) {
       throw new Error("Gemini API Key is missing. Please check your environment variables.");
     }
@@ -134,12 +134,12 @@ export const processIncomingAudio = async (
 
     const text = response.text;
     if (!text) throw new Error("No response from Gemini");
-
+    
     const result = cleanAndParseJSON(text);
-
+    
     // Log to Firebase
     await logTranslation('audio', 'English', targetLang);
-
+    
     return result;
   } catch (error) {
     console.error("Audio processing error:", error);
@@ -175,7 +175,7 @@ export const processIncomingText = async (
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
-
+    
     const result = cleanAndParseJSON(resultText);
 
     // Log to Firebase
@@ -219,9 +219,9 @@ export const translateReply = async (
 
     const resultText = response.text;
     if (!resultText) throw new Error("No response");
-
+    
     const result = cleanAndParseJSON(resultText);
-
+    
     // Log to Firebase
     await logTranslation('reply', sourceLang, 'English');
 

@@ -7,7 +7,7 @@ interface LanguageSelectorProps {
 
 export const LanguageSelector: React.FC<LanguageSelectorProps> = ({ onSelect }) => {
   return (
-    <div className="flex flex-col items-center justify-center h-full p-8 space-y-12 bg-black text-white">
+    <div className="flex flex-col items-center justify-center min-h-[100dvh] p-8 space-y-12 bg-black text-white">
       <div className="text-center space-y-4 animate-in fade-in zoom-in duration-500">
         <h1 className="text-5xl font-bold tracking-tighter text-[#E50914]">C3TALK</h1>
         <p className="text-lg text-neutral-400 font-light">Select your preferred language</p>

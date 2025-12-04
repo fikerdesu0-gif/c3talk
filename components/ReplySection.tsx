@@ -42,28 +42,25 @@ export const ReplySection: React.FC<ReplySectionProps> = ({ language }) => {
         {language === Language.AMHARIC ? 'መልስ (Reply)' : 'Deebii (Reply)'}
       </h3>
       
-      {/* Input Area */}
-      <div className="bg-neutral-900 p-2 rounded-3xl border border-neutral-800 focus-within:border-neutral-600 transition-colors">
+      {/* Input Area - Redesigned with floating button */}
+      <div className="relative">
         <textarea
           value={inputText}
           onChange={(e) => setInputText(e.target.value)}
           placeholder={language === Language.AMHARIC ? 'እዚህ ይጻፉ...' : 'Asitti barreessi...'}
-          className="w-full bg-transparent outline-none text-lg text-white placeholder:text-neutral-600 resize-none h-24 p-4 rounded-xl"
+          className="w-full h-36 p-5 pr-16 bg-neutral-900 border border-neutral-800 rounded-3xl text-lg text-white placeholder:text-neutral-600 focus:border-[#E50914] focus:ring-1 focus:ring-[#E50914] outline-none resize-none transition-all"
         />
-        <div className="flex justify-end p-2">
-          <button 
+        <button 
             onClick={handleTranslate}
             disabled={!inputText.trim() || isTranslating}
-            className={`flex items-center gap-2 px-6 py-2.5 rounded-2xl font-bold transition-all ${
-              inputText.trim() 
-                ? 'bg-white text-black hover:bg-neutral-200' 
-                : 'bg-neutral-800 text-neutral-500'
+            className={`absolute bottom-3 right-3 p-3 rounded-full transition-all shadow-lg flex items-center justify-center ${
+                inputText.trim() 
+                ? 'bg-[#E50914] text-white hover:bg-[#b8070f] active:scale-95' 
+                : 'bg-neutral-800 text-neutral-600'
             }`}
-          >
-            {isTranslating ? <Loader2 className="animate-spin" size={18} /> : <ArrowRight size={18} />}
-            <span className="text-sm">Translate</span>
-          </button>
-        </div>
+        >
+            {isTranslating ? <Loader2 className="animate-spin" size={20} /> : <ArrowRight size={20} className="stroke-[3]" />}
+        </button>
       </div>
 
       {/* Result Area */}
