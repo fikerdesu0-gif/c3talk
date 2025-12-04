@@ -1,0 +1,19 @@
+# UPDATE YOUR .ENV FILE WITH THESE VALUES:
+
+# Gemini API Key (Already set - keep your current value)
+VITE_GEMINI_API_KEY=AIzaSyBZZ...your_key_here
+
+# Firebase Configuration (Use these values from your firebase.ts file)
+VITE_FIREBASE_API_KEY=AIzaSyD9v0QKWRtMVaHHfhho5OcVYkCjOAxUya4
+VITE_FIREBASE_AUTH_DOMAIN=c3talk-b19ef.firebaseapp.com
+VITE_FIREBASE_PROJECT_ID=c3talk-b19ef
+VITE_FIREBASE_STORAGE_BUCKET=c3talk-b19ef.firebasestorage.app
+VITE_FIREBASE_MESSAGING_SENDER_ID=434910550026
+VITE_FIREBASE_APP_ID=1:434910550026:web:de814a9b6d16d10bc327f3
+
+# Instructions:
+# 1. Copy the Firebase values above
+# 2. Open your .env file
+# 3. Replace the placeholder values with the ones above
+# 4. Save the file
+# 5. Restart the dev server (Ctrl+C, then npm run dev)

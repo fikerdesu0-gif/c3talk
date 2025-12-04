@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Environment Variable Test</title>
+</head>
+<body>
+    <h1>Environment Variable Test</h1>
+    <div id="output"></div>
+    
+    <script type="module">
+        const output = document.getElementById('output');
+        const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+        
+        output.innerHTML = `
+            <p><strong>VITE_GEMINI_API_KEY:</strong> ${apiKey ? '✅ Set (length: ' + apiKey.length + ')' : '❌ NOT SET'}</p>
+            <p><strong>All VITE_ variables:</strong></p>
+            <pre>${JSON.stringify(import.meta.env, null, 2)}</pre>
+        `;
+    </script>
+</body>
+</html>
