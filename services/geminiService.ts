@@ -2,6 +2,7 @@ import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language } from "../types";
 import { db, auth } from "./firebase";
 import { collection, setDoc, doc, serverTimestamp } from "firebase/firestore";
+import { deductCredits, getUserCredits } from "./creditService";
 
 // Initialize Gemini Client Lazily
 // This prevents the app from crashing on load if the API key is missing (e.g. during build or initial setup)
@@ -121,6 +122,15 @@ export const processIncomingAudio = async (
   targetLang: Language
 ): Promise<{ transcription: string; translation: string }> => {
   try {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    // Check credits
+    const credits = await getUserCredits(user.uid);
+    if (credits < 1) {
+      throw new Error("Insufficient credits. Please purchase a plan.");
+    }
+
     const ai = getAI();
     const prompt = `
       You are an expert translator.
@@ -168,10 +178,13 @@ export const processIncomingAudio = async (
     // Log to Firebase
     logTranslation('audio', 'English', targetLang, result.transcription, result.translation);
 
+    // Deduct Credit
+    await deductCredits(user.uid, 1);
+
     return result;
   } catch (error) {
     console.error("Audio processing error:", error);
-    throw new Error("Failed to process audio. The service might be busy or the file format unsupported.");
+    throw error; // Re-throw to handle in UI
   }
 };
 
@@ -183,6 +196,15 @@ export const processIncomingText = async (
   targetLang: Language
 ): Promise<{ translation: string }> => {
   try {
+    const user = auth.currentUser;
+    if (!user) throw new Error("User not authenticated");
+
+    // Check credits
+    const credits = await getUserCredits(user.uid);
+    if (credits < 0.5) {
+      throw new Error("Insufficient credits. Please purchase a plan.");
+    }
+
     const ai = getAI();
     const prompt = `Translate the following English text into ${targetLang}. Return strictly JSON.`;
 
@@ -209,10 +231,13 @@ export const processIncomingText = async (
     // Log to Firebase
     logTranslation('text', 'English', targetLang, text, result.translation);
 
+    // Deduct Credit
+    await deductCredits(user.uid, 0.5);
+
     return result;
   } catch (error) {
     console.error("Text processing error:", error);
-    throw new Error("Failed to translate text.");
+    throw error;
   }
 };
 

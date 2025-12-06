@@ -12,6 +12,7 @@ interface MainScreenProps {
     onLanguageChange: () => void;
     installPrompt: any;
     onInstallClick: () => void;
+    credits: number | null;
 }
 
 export const MainScreen: React.FC<MainScreenProps> = ({
@@ -21,6 +22,7 @@ export const MainScreen: React.FC<MainScreenProps> = ({
     onLanguageChange,
     installPrompt,
     onInstallClick,
+    credits,
 }) => {
     const [activeTab, setActiveTab] = useState<TabType>('home');
 
@@ -33,6 +35,7 @@ export const MainScreen: React.FC<MainScreenProps> = ({
                         language={language}
                         onVoiceClick={onVoiceClick}
                         onTextClick={onTextClick}
+                        credits={credits}
                     />
                 )}
                 {activeTab === 'history' && <History />}
@@ -42,6 +45,7 @@ export const MainScreen: React.FC<MainScreenProps> = ({
                         onLanguageChange={onLanguageChange}
                         installPrompt={installPrompt}
                         onInstallClick={onInstallClick}
+                        credits={credits}
                     />
                 )}
             </div>

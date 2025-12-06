@@ -5,9 +5,12 @@ import { VoiceFlow } from './components/VoiceFlow';
 import { TextFlow } from './components/TextFlow';
 import { MainScreen } from './components/MainScreen';
 import { LoginScreen } from './components/LoginScreen';
+import { Paywall } from './components/Paywall';
 import { trackPageView } from './services/analytics';
-import { auth } from './services/firebase';
-import { onAuthStateChanged } from 'firebase/auth';
+import { auth, db } from './services/firebase';
+import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
+import { doc, onSnapshot } from 'firebase/firestore';
+import { initializeUserCredits } from './services/creditService';
 
 // Interface for the PWA install event
 interface BeforeInstallPromptEvent extends Event {
@@ -16,19 +19,28 @@ interface BeforeInstallPromptEvent extends Event {
 }
 
 const App: React.FC = () => {
-  const [mode, setMode] = useState<AppMode>(AppMode.LOGIN);
+  const [mode, setMode] = useState<AppMode>(AppMode.LOGIN); // Default to LOGIN/ONBOARDING logic
   const [language, setLanguage] = useState<Language | null>(null);
   const [hasSharedContent, setHasSharedContent] = useState(false);
   const [installPrompt, setInstallPrompt] = useState<BeforeInstallPromptEvent | null>(null);
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
+  const [credits, setCredits] = useState<number | null>(null);
+  const [showLogin, setShowLogin] = useState(false); // Toggle for Login Screen
 
   // Authentication Listener
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setIsAuthLoading(false);
+    const unsubscribe = onAuthStateChanged(auth, async (user) => {
       if (user) {
         setIsAuthenticated(true);
+        setIsAuthLoading(false);
+        setShowLogin(false); // Close login screen if auth successful
+
+        console.log("✅ Current User ID:", user.uid); // <--- LOOK HERE IN CONSOLE
+
+        // Initialize credits for new users (Guest or Paid)
+        await initializeUserCredits(user.uid);
+
         // Check for saved language preferences or onboarding state
         const savedLang = localStorage.getItem('c3talk_lang');
         if (savedLang) {
@@ -38,13 +50,32 @@ const App: React.FC = () => {
           setMode(AppMode.ONBOARDING);
         }
       } else {
-        setIsAuthenticated(false);
-        setMode(AppMode.LOGIN);
+        // No user -> Sign in Anonymously (Guest Mode)
+        console.log("No user, signing in anonymously...");
+        signInAnonymously(auth).catch((error) => {
+          console.error("Anonymous Auth Error:", error);
+          setIsAuthLoading(false);
+        });
+        // We don't set isAuthenticated to false here because we want to wait for anon sign-in
       }
     });
 
     return () => unsubscribe();
   }, []);
+
+  // Credit Listener
+  useEffect(() => {
+    if (!auth.currentUser) return;
+
+    const userRef = doc(db, "users", auth.currentUser.uid);
+    const unsubscribe = onSnapshot(userRef, (doc) => {
+      if (doc.exists()) {
+        setCredits(doc.data().balance);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [isAuthenticated, auth.currentUser?.uid]); // Re-run when auth state changes (e.g. Guest -> Paid)
 
   useEffect(() => {
     // Capture the PWA install prompt event
@@ -131,9 +162,22 @@ const App: React.FC = () => {
     );
   }
 
-  // Auth Guard
-  if (!isAuthenticated) {
-    return <LoginScreen />;
+  // Show Login Screen Overlay
+  if (showLogin) {
+    return <LoginScreen onBack={() => setShowLogin(false)} />;
+  }
+
+  // Show Paywall Overlay (if credits are 0 and not loading)
+  // We check credits !== null to ensure we loaded them
+  const shouldShowPaywall = credits !== null && credits <= 0;
+
+  if (shouldShowPaywall && language) {
+    return (
+      <Paywall
+        language={language}
+        onLoginClick={() => setShowLogin(true)}
+      />
+    );
   }
 
   // Render Flows
@@ -146,12 +190,13 @@ const App: React.FC = () => {
           setMode(AppMode.HOME);
         }}
         autoLoadShared={hasSharedContent}
+        credits={credits}
       />
     );
   }
 
   if (mode === AppMode.TEXT_FLOW && language) {
-    return <TextFlow language={language} onBack={() => setMode(AppMode.HOME)} />;
+    return <TextFlow language={language} onBack={() => setMode(AppMode.HOME)} credits={credits} />;
   }
 
   // Render Main Screen (Home, History, Settings with Bottom Navigation)
@@ -164,11 +209,12 @@ const App: React.FC = () => {
         onLanguageChange={resetSettings}
         installPrompt={installPrompt}
         onInstallClick={handleInstallClick}
+        credits={credits}
       />
     );
   }
 
-  // Render Onboarding
+  // Render Onboarding (Language Selector)
   return <LanguageSelector onSelect={handleLanguageSelect} />;
 };
 
