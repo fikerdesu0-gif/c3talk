@@ -167,18 +167,7 @@ const App: React.FC = () => {
     return <LoginScreen onBack={() => setShowLogin(false)} />;
   }
 
-  // Show Paywall Overlay (if credits are 0 and not loading)
-  // We check credits !== null to ensure we loaded them
-  const shouldShowPaywall = credits !== null && credits <= 0;
-
-  if (shouldShowPaywall && language) {
-    return (
-      <Paywall
-        language={language}
-        onLoginClick={() => setShowLogin(true)}
-      />
-    );
-  }
+  
 
   // Render Flows
   if (mode === AppMode.VOICE_FLOW && language) {
@@ -191,12 +180,13 @@ const App: React.FC = () => {
         }}
         autoLoadShared={hasSharedContent}
         credits={credits}
+        onLoginClick={() => setShowLogin(true)}
       />
     );
   }
 
   if (mode === AppMode.TEXT_FLOW && language) {
-    return <TextFlow language={language} onBack={() => setMode(AppMode.HOME)} credits={credits} />;
+    return <TextFlow language={language} onBack={() => setMode(AppMode.HOME)} credits={credits} onLoginClick={() => setShowLogin(true)} />;
   }
 
   // Render Main Screen (Home, History, Settings with Bottom Navigation)

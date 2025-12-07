@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import { Mic, Upload, FileAudio, RefreshCw, Loader2, Play } from 'lucide-react';
 import { Header } from './Header';
+import { Paywall } from './Paywall';
 import { ReplySection } from './ReplySection';
 import { Language, ProcessingState } from '../types';
 import { fileToGenerativePart, processIncomingAudio } from '../services/geminiService';
@@ -10,13 +11,15 @@ interface VoiceFlowProps {
   onBack: () => void;
   autoLoadShared?: boolean;
   credits: number | null;
+  onLoginClick: () => void;
 }
 
-export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoadShared, credits }) => {
+export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoadShared, credits, onLoginClick }) => {
   const [processingState, setProcessingState] = useState<ProcessingState>({ status: 'idle' });
   const [transcription, setTranscription] = useState('');
   const [translation, setTranslation] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [showPaywall, setShowPaywall] = useState(false);
 
   useEffect(() => {
     if (autoLoadShared) {
@@ -41,7 +44,11 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
 
         const file = new File([blob], fileName, { type: blob.type });
 
-        await processFile(file);
+        if (credits !== null && credits <= 0) {
+          setShowPaywall(true);
+        } else {
+          await processFile(file);
+        }
 
         // Clean up cache
         await cache.delete('shared-file');
@@ -97,18 +104,30 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
       setProcessingState({ status: 'success' });
     } catch (e: any) {
       console.error("Processing failed", e);
-      setProcessingState({ status: 'error', message: e.message || 'Failed to process audio.' });
+      if (e?.message?.toLowerCase().includes('insufficient credits')) {
+        setShowPaywall(true);
+        setProcessingState({ status: 'idle' });
+      } else {
+        setProcessingState({ status: 'error', message: e.message || 'Failed to process audio.' });
+      }
     }
   };
 
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
+    if (credits !== null && credits <= 0) {
+      setShowPaywall(true);
+      return;
+    }
     await processFile(file);
   };
 
   return (
     <div className="flex-1 flex flex-col bg-black text-white">
+      {showPaywall && (
+        <Paywall language={language} onLoginClick={onLoginClick} onClose={() => setShowPaywall(false)} />
+      )}
       <Header title="Voice Message" onBack={onBack} />
 
       <div className="flex-1 overflow-y-auto p-6 pb-12 fade-in">

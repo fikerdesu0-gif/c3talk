@@ -1,15 +1,16 @@
 import React, { useState } from 'react';
-import { Check, Star, Send, LogIn, Lock } from 'lucide-react';
+import { Check, Star, Send, LogIn, Lock, X } from 'lucide-react';
 import { Language } from '../types';
 
 interface PaywallProps {
     language: Language;
     onLoginClick: () => void;
+    onClose?: () => void;
 }
 
 const ADMIN_WHATSAPP_NUMBER = '251970692215';
 
-export const Paywall: React.FC<PaywallProps> = ({ language, onLoginClick }) => {
+export const Paywall: React.FC<PaywallProps> = ({ language, onLoginClick, onClose }) => {
     const [plan, setPlan] = useState<'monthly' | 'yearly'>('yearly');
     const [fullName, setFullName] = useState('');
     const [phoneNumber, setPhoneNumber] = useState('');
@@ -52,6 +53,11 @@ export const Paywall: React.FC<PaywallProps> = ({ language, onLoginClick }) => {
 
                 {/* Header */}
                 <div className="text-center space-y-2">
+                    {onClose && (
+                        <button onClick={onClose} className="absolute top-4 right-4 p-2 text-white/70 hover:text-white hover:bg-white/10 rounded-full transition-colors">
+                            <X size={20} />
+                        </button>
+                    )}
                     <div className="w-16 h-16 bg-[#E50914] rounded-full flex items-center justify-center mx-auto mb-4 shadow-[0_0_20px_rgba(229,9,20,0.5)]">
                         <Star fill="white" size={32} />
                     </div>

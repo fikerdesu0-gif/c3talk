@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Type, RefreshCw, Loader2, ClipboardPaste, ArrowDown } from 'lucide-react';
 import { Header } from './Header';
+import { Paywall } from './Paywall';
 import { ReplySection } from './ReplySection';
 import { Language, ProcessingState } from '../types';
 import { processIncomingText } from '../services/geminiService';
@@ -9,15 +10,21 @@ interface TextFlowProps {
   language: Language;
   onBack: () => void;
   credits: number | null;
+  onLoginClick: () => void;
 }
 
-export const TextFlow: React.FC<TextFlowProps> = ({ language, onBack, credits }) => {
+export const TextFlow: React.FC<TextFlowProps> = ({ language, onBack, credits, onLoginClick }) => {
   const [processingState, setProcessingState] = useState<ProcessingState>({ status: 'idle' });
   const [inputEnglish, setInputEnglish] = useState('');
   const [translation, setTranslation] = useState('');
+  const [showPaywall, setShowPaywall] = useState(false);
 
   const handleTranslate = async () => {
     if (!inputEnglish.trim()) return;
+    if (credits !== null && credits <= 0) {
+      setShowPaywall(true);
+      return;
+    }
     setProcessingState({ status: 'processing' });
 
     try {
@@ -25,7 +32,12 @@ export const TextFlow: React.FC<TextFlowProps> = ({ language, onBack, credits })
       setTranslation(result.translation);
       setProcessingState({ status: 'success' });
     } catch (e: any) {
-      setProcessingState({ status: 'error', message: e.message || 'Translation failed.' });
+      if (e?.message?.toLowerCase().includes('insufficient credits')) {
+        setShowPaywall(true);
+        setProcessingState({ status: 'idle' });
+      } else {
+        setProcessingState({ status: 'error', message: e.message || 'Translation failed.' });
+      }
     }
   };
 
@@ -40,6 +52,9 @@ export const TextFlow: React.FC<TextFlowProps> = ({ language, onBack, credits })
 
   return (
     <div className="flex-1 flex flex-col bg-black text-white">
+      {showPaywall && (
+        <Paywall language={language} onLoginClick={onLoginClick} onClose={() => setShowPaywall(false)} />
+      )}
       <Header title="Text Message" onBack={onBack} />
 
       <div className="flex-1 overflow-y-auto p-6 pb-20 fade-in">
