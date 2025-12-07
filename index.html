@@ -4,12 +4,21 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
     <meta name="theme-color" content="#000000" />
-    <meta name="description" content="Translation bridge for Amharic and Oromo speakers." />
-    <title>C3TALK</title>
-    
-    <!-- PWA Manifest & Icons -->
+    <meta name="description" content="C3 Talk converts WhatsApp voice notes into text instantly — with support for Amharic, Oromo and English translation. Fast. Simple. Accurate." />
+    <meta name="keywords" content="whatsapp voice transcriber, amharic translator, oromo translator, speech to text, voice note translation, AI transcription app" />
+    <link rel="canonical" href="https://c3talk.app" />
+    <title>C3 Talk – WhatsApp Voice Note to Text (Amharic & Oromo Translator)</title>
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="C3 Talk – WhatsApp Voice Note to Text (Amharic & Oromo Translator)" />
+    <meta property="og:description" content="C3 Talk converts WhatsApp voice notes into text instantly — with support for Amharic, Oromo and English translation. Fast. Simple. Accurate." />
+    <meta property="og:url" content="https://c3talk.app" />
+    <meta property="og:image" content="/seo/c3talk-preview.svg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="C3 Talk – WhatsApp Voice Note to Text (Amharic & Oromo Translator)" />
+    <meta name="twitter:description" content="C3 Talk converts WhatsApp voice notes into text instantly — with support for Amharic, Oromo and English translation. Fast. Simple. Accurate." />
+    <meta name="twitter:image" content="/seo/c3talk-preview.svg" />
     <link rel="manifest" href="/manifest.json" />
-    <link rel="apple-touch-icon" href="https://placehold.co/192x192/000000/E50914.png?text=C3">
+    <link rel="icon" href="/icons/favicon.svg" type="image/svg+xml" />
     
     <!-- Google tag (gtag.js) -->
     <script async src="https://www.googletagmanager.com/gtag/js?id=G-RZLNZ1TP76"></script>
@@ -63,24 +72,7 @@
         to { opacity: 1; transform: translateY(0); }
       }
     </style>
-    <script type="importmap">
-{
-  "imports": {
-    "react": "https://aistudiocdn.com/react@^19.2.0",
-    "react-dom/client": "https://aistudiocdn.com/react-dom@^19.2.0/client",
-    "react-dom/": "https://aistudiocdn.com/react-dom@^19.2.0/",
-    "react/": "https://aistudiocdn.com/react@^19.2.0/",
-    "@google/genai": "https://aistudiocdn.com/@google/genai@^1.30.0",
-    "lucide-react": "https://aistudiocdn.com/lucide-react@^0.555.0",
-    "firebase/app": "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js",
-    "firebase/auth": "https://www.gstatic.com/firebasejs/10.7.1/firebase-auth.js",
-    "firebase/firestore": "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js",
-    "firebase/": "https://aistudiocdn.com/firebase@^12.6.0/",
-    "vite": "https://aistudiocdn.com/vite@^7.2.6",
-    "@vitejs/plugin-react": "https://aistudiocdn.com/@vitejs/plugin-react@^5.1.1"
-  }
-}
-</script>
+    <link rel="preload" href="/index.tsx" as="script" />
     <script>
       // Polyfill for process.env to prevent ReferenceError on mobile browsers
       window.process = window.process || { env: {} };
@@ -90,6 +82,7 @@
     <div id="root"></div>
     <!-- Entry point for the application - Using absolute path to match Cloudflare structure -->
     <script type="module" src="/index.tsx"></script>
+    <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"C3 Talk","applicationCategory":"Communication / AI Voice Tool","operatingSystem":"Web","offers":{"@type":"Offer","price":"133","priceCurrency":"AED","availability":"https://schema.org/InStock"},"supportedLanguages":["Amharic","Oromo","English"],"url":"https://c3talk.app"}</script>
     <script>
       if ('serviceWorker' in navigator) {
         window.addEventListener('load', () => {
