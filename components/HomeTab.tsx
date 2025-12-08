@@ -20,12 +20,12 @@ export const HomeTab: React.FC<HomeTabProps> = ({ language, onVoiceClick, onText
 
             <div className="flex-1 overflow-y-auto px-6 py-8 flex flex-col justify-center space-y-8 fade-in">
                 <div className="space-y-2 mb-4">
-                    <div className="flex justify-between items-center mb-4">
+                    <div className="flex flex-col gap-2 sm:flex-row sm:justify-between sm:items-center mb-4">
                         <h2 className="text-3xl font-bold text-white tracking-tight">
                             {language === Language.AMHARIC ? 'እንኳን ደህና መጡ' : 'Baga Nagaan Dhuftan'}
                         </h2>
                         {credits !== null && (
-                            <div className="flex items-center space-x-2 px-4 py-2 rounded-full bg-green-500/20 text-green-400">
+                            <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full bg-green-500/20 text-green-400 self-start sm:self-auto">
                                 <CreditCard size={16} />
                                 <span className="font-bold">{credits} Credits</span>
                             </div>

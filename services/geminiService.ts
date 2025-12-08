@@ -201,7 +201,7 @@ export const processIncomingText = async (
 
     // Check credits
     const credits = await getUserCredits(user.uid);
-    if (credits < 0.5) {
+    if (credits < 0.25) {
       throw new Error("Insufficient credits. Please purchase a plan.");
     }
 
@@ -231,8 +231,7 @@ export const processIncomingText = async (
     // Log to Firebase
     logTranslation('text', 'English', targetLang, text, result.translation);
 
-    // Deduct Credit
-    await deductCredits(user.uid, 0.5);
+    await deductCredits(user.uid, 0.25);
 
     return result;
   } catch (error) {
