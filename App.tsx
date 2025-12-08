@@ -11,6 +11,7 @@ import { auth, db } from './services/firebase';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
 import { initializeUserCredits } from './services/creditService';
+import { UpdateToast } from './components/UpdateToast';
 
 // Interface for the PWA install event
 interface BeforeInstallPromptEvent extends Event {
@@ -153,25 +154,18 @@ const App: React.FC = () => {
     setInstallPrompt(null);
   };
 
-  // Loading Screen
+  let content: React.ReactNode = null;
+
   if (isAuthLoading) {
-    return (
+    content = (
       <div className="flex items-center justify-center h-screen bg-black text-white">
         <div className="animate-pulse text-[#E50914] font-bold text-xl">C3TALK...</div>
       </div>
     );
-  }
-
-  // Show Login Screen Overlay
-  if (showLogin) {
-    return <LoginScreen onBack={() => setShowLogin(false)} />;
-  }
-
-  
-
-  // Render Flows
-  if (mode === AppMode.VOICE_FLOW && language) {
-    return (
+  } else if (showLogin) {
+    content = <LoginScreen onBack={() => setShowLogin(false)} />;
+  } else if (mode === AppMode.VOICE_FLOW && language) {
+    content = (
       <VoiceFlow
         language={language}
         onBack={() => {
@@ -183,15 +177,17 @@ const App: React.FC = () => {
         onLoginClick={() => setShowLogin(true)}
       />
     );
-  }
-
-  if (mode === AppMode.TEXT_FLOW && language) {
-    return <TextFlow language={language} onBack={() => setMode(AppMode.HOME)} credits={credits} onLoginClick={() => setShowLogin(true)} />;
-  }
-
-  // Render Main Screen (Home, History, Settings with Bottom Navigation)
-  if (mode === AppMode.HOME && language) {
-    return (
+  } else if (mode === AppMode.TEXT_FLOW && language) {
+    content = (
+      <TextFlow
+        language={language}
+        onBack={() => setMode(AppMode.HOME)}
+        credits={credits}
+        onLoginClick={() => setShowLogin(true)}
+      />
+    );
+  } else if (mode === AppMode.HOME && language) {
+    content = (
       <MainScreen
         language={language}
         onVoiceClick={() => setMode(AppMode.VOICE_FLOW)}
@@ -202,10 +198,16 @@ const App: React.FC = () => {
         credits={credits}
       />
     );
+  } else {
+    content = <LanguageSelector onSelect={handleLanguageSelect} />;
   }
 
-  // Render Onboarding (Language Selector)
-  return <LanguageSelector onSelect={handleLanguageSelect} />;
+  return (
+    <>
+      {content}
+      <UpdateToast />
+    </>
+  );
 };
 
 export default App;

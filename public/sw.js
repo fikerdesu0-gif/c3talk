@@ -1,4 +1,6 @@
-const CACHE_NAME = 'c3talk-v2';
+const params = new URLSearchParams(self.location.search);
+const BUILD_VERSION = params.get('v') || 'dev';
+const CACHE_NAME = `c3talk-v${BUILD_VERSION}`;
 const SHARE_CACHE = 'share-cache';
 const urlsToCache = [
   '/',
@@ -27,12 +29,16 @@ self.addEventListener('activate', event => {
     })
   );
   self.clients.claim(); // Take control of all clients immediately
+  self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+    clients.forEach(client => {
+      client.postMessage({ type: 'SW_ACTIVATED', version: BUILD_VERSION });
+    });
+  });
 });
 
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Handle Share Target POST request
   if (event.request.method === 'POST' && url.pathname.endsWith('/share-target/')) {
     event.respondWith(
       (async () => {
@@ -42,14 +48,11 @@ self.addEventListener('fetch', event => {
 
           if (mediaFile) {
             const cache = await caches.open(SHARE_CACHE);
-            // Store the file as a response object in a specific cache key
             await cache.put('shared-file', new Response(mediaFile));
           }
-          
-          // Redirect to the app with a query param indicating a share action
+
           return Response.redirect('/?action=share-voice', 303);
-        } catch (err) {
-          console.error('Share target failed', err);
+        } catch {
           return Response.redirect('/', 303);
         }
       })()
@@ -57,9 +60,24 @@ self.addEventListener('fetch', event => {
     return;
   }
 
-  // Standard Cache-First Strategy
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(event.request);
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(event.request, response.clone);
+          return response;
+        } catch {
+          const cached = await caches.match(event.request);
+          return cached || caches.match('/index.html');
+        }
+      })()
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response => response || fetch(event.request))
+    caches.match(event.request).then(response => response || fetch(event.request))
   );
 });

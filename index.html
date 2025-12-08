@@ -83,19 +83,5 @@
     <!-- Entry point for the application - Using absolute path to match Cloudflare structure -->
     <script type="module" src="/index.tsx"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"C3 Talk","applicationCategory":"Communication / AI Voice Tool","operatingSystem":"Web","offers":{"@type":"Offer","price":"133","priceCurrency":"AED","availability":"https://schema.org/InStock"},"supportedLanguages":["Amharic","Oromo","English"],"url":"https://c3talk.app"}</script>
-    <script>
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          // Use absolute path for robustness in production
-          navigator.serviceWorker.register('/sw.js')
-            .then(registration => {
-              console.log('SW registered');
-            })
-            .catch(registrationError => {
-              console.log('SW registration failed: ', registrationError);
-            });
-        });
-      }
-    </script>
   </body>
 </html>
