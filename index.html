@@ -83,5 +83,11 @@
     <!-- Entry point for the application - Using absolute path to match Cloudflare structure -->
     <script type="module" src="/index.tsx"></script>
     <script type="application/ld+json">{"@context":"https://schema.org","@type":"SoftwareApplication","name":"C3 Talk","applicationCategory":"Communication / AI Voice Tool","operatingSystem":"Web","offers":{"@type":"Offer","price":"133","priceCurrency":"AED","availability":"https://schema.org/InStock"},"supportedLanguages":["Amharic","Oromo","English"],"url":"https://c3talk.app"}</script>
+    <div id="update-toast" class="fixed bottom-4 left-0 right-0 mx-auto max-w-[480px] px-3 z-50 hidden">
+      <div class="rounded-xl bg-neutral-900 border border-neutral-800 text-white px-4 py-3 flex items-center justify-between shadow-lg">
+        <span class="text-sm">New update available — Refresh</span>
+        <button id="update-toast-refresh" class="px-3 py-2 bg-[#E50914] rounded-lg text-white text-sm font-semibold">Refresh</button>
+      </div>
+    </div>
   </body>
 </html>

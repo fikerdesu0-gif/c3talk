@@ -39,5 +39,12 @@ if ('serviceWorker' in navigator) {
 }
 
 window.addEventListener('sw-update', () => {
-  // React component handles the UI for updates
+  const toast = document.getElementById('update-toast');
+  const btn = document.getElementById('update-toast-refresh');
+  if (toast) toast.classList.remove('hidden');
+  if (btn) {
+    btn.onclick = () => {
+      location.reload();
+    };
+  }
 });
