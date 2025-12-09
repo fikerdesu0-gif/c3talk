@@ -48,11 +48,13 @@ self.addEventListener('fetch', event => {
 
           if (mediaFile) {
             const cache = await caches.open(SHARE_CACHE);
-            await cache.put('shared-file', new Response(mediaFile));
+            const headers = new Headers({ 'Content-Type': mediaFile.type || 'application/octet-stream' });
+            await cache.put('shared-file', new Response(mediaFile, { headers }));
           }
 
           return Response.redirect('/?action=share-voice', 303);
-        } catch {
+        } catch (e) {
+          console.error('Share target processing failed', e);
           return Response.redirect('/', 303);
         }
       })()
@@ -66,7 +68,7 @@ self.addEventListener('fetch', event => {
         try {
           const response = await fetch(event.request);
           const cache = await caches.open(CACHE_NAME);
-          await cache.put(event.request, response.clone);
+          await cache.put(event.request, response.clone());
           return response;
         } catch {
           const cached = await caches.match(event.request);

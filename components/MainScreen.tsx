@@ -27,9 +27,9 @@ export const MainScreen: React.FC<MainScreenProps> = ({
     const [activeTab, setActiveTab] = useState<TabType>('home');
 
     return (
-        <div className="flex flex-col h-screen bg-black">
+        <div className="flex flex-col min-h-[100dvh] bg-black">
             {/* Tab Content */}
-            <div className="flex-1">
+            <div className="flex-1 min-h-0">
                 {activeTab === 'home' && (
                     <HomeTab
                         language={language}

@@ -31,26 +31,25 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
     setProcessingState({ status: 'processing', message: 'Loading shared file...' });
     try {
       const cache = await caches.open('share-cache');
-      const response = await cache.match('shared-file');
-
+      let response = await cache.match('shared-file');
+      if (!response) {
+        for (let i = 0; i < 2 && !response; i++) {
+          await new Promise(r => setTimeout(r, 300));
+          response = await cache.match('shared-file');
+        }
+      }
       if (response) {
         const blob = await response.blob();
-        // Try to detect extension from blob type or fallback
         let fileName = "shared_audio";
-        // WhatsApp shares often come as application/octet-stream or audio/opus
-        if (blob.type.includes('ogg') || blob.type.includes('opus')) fileName += ".opus";
+        if (blob.type.includes('ogg') || blob.type.includes('opus')) fileName += ".ogg";
         else if (blob.type.includes('mp4') || blob.type.includes('m4a')) fileName += ".m4a";
         else fileName += ".mp3";
-
         const file = new File([blob], fileName, { type: blob.type });
-
         if (credits !== null && credits <= 0) {
           setShowPaywall(true);
         } else {
           await processFile(file);
         }
-
-        // Clean up cache
         await cache.delete('shared-file');
       } else {
         setProcessingState({ status: 'idle' });
@@ -58,6 +57,58 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
     } catch (e) {
       console.error("Error loading shared file", e);
       setProcessingState({ status: 'error', message: 'Could not load shared file.' });
+    }
+  };
+
+  const convertToWav = async (file: File): Promise<Blob> => {
+    const arrayBuffer = await file.arrayBuffer();
+    const audioCtx = new (window.AudioContext || (window as any).webkitAudioContext)();
+    const decoded = await audioCtx.decodeAudioData(arrayBuffer);
+    const targetSampleRate = 16000;
+    const length = Math.ceil(decoded.duration * targetSampleRate);
+    const offlineCtx = new OfflineAudioContext(1, length, targetSampleRate);
+    const source = offlineCtx.createBufferSource();
+    const monoBuffer = offlineCtx.createBuffer(1, decoded.length, decoded.sampleRate);
+    decoded.copyFromChannel(monoBuffer.getChannelData(0), 0);
+    source.buffer = monoBuffer;
+    source.connect(offlineCtx.destination);
+    source.start(0);
+    const rendered = await offlineCtx.startRendering();
+    const pcm = rendered.getChannelData(0);
+    const wavBuffer = encodeWAV(pcm, targetSampleRate);
+    return new Blob([wavBuffer], { type: 'audio/wav' });
+  };
+
+  const encodeWAV = (samples: Float32Array, sampleRate: number): ArrayBuffer => {
+    const buffer = new ArrayBuffer(44 + samples.length * 2);
+    const view = new DataView(buffer);
+    writeString(view, 0, 'RIFF');
+    view.setUint32(4, 36 + samples.length * 2, true);
+    writeString(view, 8, 'WAVE');
+    writeString(view, 12, 'fmt ');
+    view.setUint32(16, 16, true);
+    view.setUint16(20, 1, true);
+    view.setUint16(22, 1, true);
+    view.setUint32(24, sampleRate, true);
+    view.setUint32(28, sampleRate * 2, true);
+    view.setUint16(32, 2, true);
+    view.setUint16(34, 16, true);
+    writeString(view, 36, 'data');
+    view.setUint32(40, samples.length * 2, true);
+    floatTo16BitPCM(view, 44, samples);
+    return buffer;
+  };
+
+  const writeString = (view: DataView, offset: number, str: string) => {
+    for (let i = 0; i < str.length; i++) {
+      view.setUint8(offset + i, str.charCodeAt(i));
+    }
+  };
+
+  const floatTo16BitPCM = (view: DataView, offset: number, input: Float32Array) => {
+    for (let i = 0; i < input.length; i++, offset += 2) {
+      let s = Math.max(-1, Math.min(1, input[i]));
+      view.setInt16(offset, s < 0 ? s * 0x8000 : s * 0x7FFF, true);
     }
   };
 
@@ -92,11 +143,15 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
     setProcessingState({ status: 'processing', message: 'Analyzing Voice Note...' });
 
     try {
-      const base64 = await fileToGenerativePart(file);
-      const mimeType = getMimeType(file);
-
-      console.log(`Processing file: ${file.name} as ${mimeType}`);
-
+      let workingFile = file;
+      let mimeType = getMimeType(workingFile);
+      if (mimeType === 'audio/ogg') {
+        const wavBlob = await convertToWav(workingFile);
+        workingFile = new File([wavBlob], (file.name.split('.')[0] || 'audio') + '.wav', { type: 'audio/wav' });
+        mimeType = 'audio/wav';
+      }
+      const base64 = await fileToGenerativePart(workingFile);
+      console.log(`Processing file: ${workingFile.name} as ${mimeType}`);
       const result = await processIncomingAudio(base64, mimeType, language);
 
       setTranscription(result.transcription);

@@ -10,7 +10,7 @@ import { trackPageView } from './services/analytics';
 import { auth, db } from './services/firebase';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { initializeUserCredits } from './services/creditService';
+import { initializeUserCredits, getGuestCredits } from './services/creditService';
 
 // Interface for the PWA install event
 interface BeforeInstallPromptEvent extends Event {
@@ -65,17 +65,22 @@ const App: React.FC = () => {
 
   // Credit Listener
   useEffect(() => {
-    if (!auth.currentUser) return;
-
-    const userRef = doc(db, "users", auth.currentUser.uid);
+    const user = auth.currentUser;
+    if (!user) return;
+    if (user.isAnonymous) {
+      setCredits(getGuestCredits());
+      const handler = () => setCredits(getGuestCredits());
+      window.addEventListener('c3talk:credits-updated', handler);
+      return () => window.removeEventListener('c3talk:credits-updated', handler);
+    }
+    const userRef = doc(db, "users", user.uid);
     const unsubscribe = onSnapshot(userRef, (doc) => {
       if (doc.exists()) {
         setCredits(doc.data().balance);
       }
     });
-
     return () => unsubscribe();
-  }, [isAuthenticated, auth.currentUser?.uid]); // Re-run when auth state changes (e.g. Guest -> Paid)
+  }, [isAuthenticated, auth.currentUser?.uid]);
 
   useEffect(() => {
     // Capture the PWA install prompt event

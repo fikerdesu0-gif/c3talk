@@ -89,11 +89,10 @@ export const Paywall: React.FC<PaywallProps> = ({ language, onLoginClick, onClos
                                     <div className="text-sm text-neutral-400">{CURRENT_YEARLY_PRICE} AED / {language === Language.AMHARIC ? 'አመት' : language === Language.OROMO ? 'waggaa' : 'year'}</div>
                                     <div className="text-xs text-neutral-500 line-through">{ORIGINAL_YEARLY_FROM_MONTHLY} AED</div>
                                 </div>
-                                
                                 <div className="text-xs text-green-400 mt-1">{language === Language.AMHARIC ? `ቆጥብ ${savingsPercent}%` : language === Language.OROMO ? `Garaagarummaa ${savingsPercent}%` : `Save ${savingsPercent}%`}</div>
                             </div>
                             <div className="w-6 h-6 bg-[#E50914] rounded-full flex items-center justify-center">
-                                <Check size={14} />
+                                <Check className="w-[clamp(12px,4vw,14px)] h-[clamp(12px,4vw,14px)]" />
                             </div>
                         </div>
                     </div>
@@ -103,8 +102,8 @@ export const Paywall: React.FC<PaywallProps> = ({ language, onLoginClick, onClos
                 <div className="space-y-3 w-full max-w-md">
                     {benefits.map((benefit, index) => (
                         <div key={index} className="flex items-center gap-3 text-neutral-300">
-                            <Check size={18} className="text-[#E50914]" />
-                            <span>{benefit}</span>
+                            <Check className="text-[#E50914] w-[clamp(16px,4.5vw,18px)] h-[clamp(16px,4.5vw,18px)]" />
+                            <span className="break-words whitespace-normal">{benefit}</span>
                         </div>
                     ))}
                 </div>

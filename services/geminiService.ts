@@ -10,10 +10,9 @@ let aiInstance: GoogleGenAI | null = null;
 
 const getAI = () => {
   if (!aiInstance) {
-    const viteEnv: any = (import.meta as any)?.env;
-    const key = viteEnv?.VITE_API_KEY || viteEnv?.VITE_GEMINI_API_KEY || (process.env as any)?.API_KEY;
+    const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY;
     if (!key) {
-      throw new Error("Gemini API Key is missing. Please check your environment variables.");
+      throw new Error("Gemini API key is missing — set VITE_GEMINI_API_KEY.");
     }
     aiInstance = new GoogleGenAI({ apiKey: key });
   }

@@ -1,22 +1,44 @@
-const CACHE_NAME = 'c3talk-v1';
+const params = new URLSearchParams(self.location.search);
+const BUILD_VERSION = params.get('v') || 'dev';
+const CACHE_NAME = `c3talk-v${BUILD_VERSION}`;
 const SHARE_CACHE = 'share-cache';
 const urlsToCache = [
-  './',
-  './index.html',
-  './manifest.json'
+  '/',
+  '/index.html',
+  '/manifest.json'
 ];
 
 self.addEventListener('install', event => {
+  self.skipWaiting();
   event.waitUntil(
     caches.open(CACHE_NAME)
       .then(cache => cache.addAll(urlsToCache))
   );
 });
 
+self.addEventListener('activate', event => {
+  event.waitUntil(
+    caches.keys().then(cacheNames => {
+      return Promise.all(
+        cacheNames.map(cacheName => {
+          if (cacheName !== CACHE_NAME && cacheName !== SHARE_CACHE) {
+            return caches.delete(cacheName);
+          }
+        })
+      );
+    })
+  );
+  self.clients.claim();
+  self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
+    clients.forEach(client => {
+      client.postMessage({ type: 'SW_ACTIVATED', version: BUILD_VERSION });
+    });
+  });
+});
+
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
-  // Handle Share Target POST request
   if (event.request.method === 'POST' && url.pathname.endsWith('/share-target/')) {
     event.respondWith(
       (async () => {
@@ -26,24 +48,37 @@ self.addEventListener('fetch', event => {
 
           if (mediaFile) {
             const cache = await caches.open(SHARE_CACHE);
-            // Store the file as a response object in a specific cache key
-            await cache.put('shared-file', new Response(mediaFile));
+            const headers = new Headers({ 'Content-Type': mediaFile.type || 'application/octet-stream' });
+            await cache.put('shared-file', new Response(mediaFile, { headers }));
           }
-          
-          // Redirect to the app with a query param indicating a share action
-          return Response.redirect('./?action=share-voice', 303);
-        } catch (err) {
-          console.error('Share target failed', err);
-          return Response.redirect('./', 303);
+
+          return Response.redirect('/?action=share-voice', 303);
+        } catch (e) {
+          return Response.redirect('/', 303);
         }
       })()
     );
     return;
   }
 
-  // Standard Cache-First Strategy
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      (async () => {
+        try {
+          const response = await fetch(event.request);
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(event.request, response.clone());
+          return response;
+        } catch {
+          const cached = await caches.match(event.request);
+          return cached || caches.match('/index.html');
+        }
+      })()
+    );
+    return;
+  }
+
   event.respondWith(
-    caches.match(event.request)
-      .then(response => response || fetch(event.request))
+    caches.match(event.request).then(response => response || fetch(event.request))
   );
 });
