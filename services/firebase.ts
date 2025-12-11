@@ -1,5 +1,5 @@
 import { initializeApp } from "firebase/app";
-import { getAuth, setPersistence, indexedDBLocalPersistence } from "firebase/auth";
+import { getAuth } from "firebase/auth";
 import { getFirestore } from "firebase/firestore";
 
 // Configuration from Firebase Console
@@ -22,4 +22,3 @@ export const db = getFirestore(app);
 
 // Use device language for auth flow
 auth.useDeviceLanguage();
-setPersistence(auth, indexedDBLocalPersistence).catch(() => {});

@@ -38,10 +38,6 @@ const App: React.FC = () => {
 
         console.log("✅ Current User ID:", user.uid); // <--- LOOK HERE IN CONSOLE
 
-        try {
-          localStorage.setItem('c3talk_last_auth', JSON.stringify({ uid: user.uid, isAnonymous: !!user.isAnonymous }));
-        } catch {}
-
         // Initialize credits for new users (Guest or Paid)
         await initializeUserCredits(user.uid);
 
@@ -54,55 +50,13 @@ const App: React.FC = () => {
           setMode(AppMode.ONBOARDING);
         }
       } else {
-        const lastAuthRaw = localStorage.getItem('c3talk_last_auth');
-        let lastAuth: { uid: string; isAnonymous: boolean } | null = null;
-        try {
-          lastAuth = lastAuthRaw ? JSON.parse(lastAuthRaw) : null;
-        } catch {
-          lastAuth = null;
-        }
-
-        if (!navigator.onLine && lastAuth && !lastAuth.isAnonymous) {
-          setIsAuthenticated(true);
-          setIsAuthLoading(false);
-          setShowLogin(false);
-          const savedLang = localStorage.getItem('c3talk_lang');
-          if (savedLang) {
-            setLanguage(savedLang as Language);
-            setMode(AppMode.HOME);
-          } else {
-            setMode(AppMode.ONBOARDING);
-          }
-          const savedCreditsRaw = localStorage.getItem('c3talk_last_credits');
-          if (savedCreditsRaw) {
-            const val = parseFloat(savedCreditsRaw);
-            if (!isNaN(val)) setCredits(val);
-          }
-          return;
-        }
-
-        if (!navigator.onLine && (!lastAuth || lastAuth.isAnonymous)) {
-          setIsAuthenticated(true);
-          setIsAuthLoading(false);
-          const savedLang = localStorage.getItem('c3talk_lang');
-          if (savedLang) {
-            setLanguage(savedLang as Language);
-            setMode(AppMode.HOME);
-          } else {
-            setMode(AppMode.ONBOARDING);
-          }
-          setCredits(getGuestCredits());
-          return;
-        }
-
-        if (lastAuth && !lastAuth.isAnonymous) {
-          return;
-        }
+        // No user -> Sign in Anonymously (Guest Mode)
         console.log("No user, signing in anonymously...");
         signInAnonymously(auth).catch((error) => {
           console.error("Anonymous Auth Error:", error);
           setIsAuthLoading(false);
         });
+        // We don't set isAuthenticated to false here because we want to wait for anon sign-in
       }
     });
 
@@ -122,11 +76,7 @@ const App: React.FC = () => {
     const userRef = doc(db, "users", user.uid);
     const unsubscribe = onSnapshot(userRef, (doc) => {
       if (doc.exists()) {
-        const balance = doc.data().balance;
-        setCredits(balance);
-        try {
-          localStorage.setItem('c3talk_last_credits', String(balance));
-        } catch {}
+        setCredits(doc.data().balance);
       }
     });
     return () => unsubscribe();
