@@ -31,17 +31,22 @@ const App: React.FC = () => {
   // Authentication Listener
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (user) {
+      // Wait for initial auth state to be fully resolved (persisted sessions)
+      try {
+        await (auth as any).authStateReady?.();
+      } catch {}
+
+      const current = auth.currentUser;
+
+      if (current) {
         setIsAuthenticated(true);
         setIsAuthLoading(false);
-        setShowLogin(false); // Close login screen if auth successful
+        setShowLogin(false);
 
-        console.log("✅ Current User ID:", user.uid); // <--- LOOK HERE IN CONSOLE
+        console.log("✅ Current User ID:", current.uid);
 
-        // Initialize credits for new users (Guest or Paid)
-        await initializeUserCredits(user.uid);
+        await initializeUserCredits(current.uid);
 
-        // Check for saved language preferences or onboarding state
         const savedLang = localStorage.getItem('c3talk_lang');
         if (savedLang) {
           setLanguage(savedLang as Language);
@@ -50,13 +55,17 @@ const App: React.FC = () => {
           setMode(AppMode.ONBOARDING);
         }
       } else {
-        // No user -> Sign in Anonymously (Guest Mode)
-        console.log("No user, signing in anonymously...");
-        signInAnonymously(auth).catch((error) => {
-          console.error("Anonymous Auth Error:", error);
+        // No persisted user. Only attempt anonymous sign-in if online.
+        if (navigator.onLine) {
+          console.log("No user, online — signing in anonymously...");
+          signInAnonymously(auth).catch((error) => {
+            console.error("Anonymous Auth Error:", error);
+            setIsAuthLoading(false);
+          });
+        } else {
+          console.log("No user and offline — skipping anonymous sign-in");
           setIsAuthLoading(false);
-        });
-        // We don't set isAuthenticated to false here because we want to wait for anon sign-in
+        }
       }
     });
 
