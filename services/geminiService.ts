@@ -1,12 +1,15 @@
+
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language } from "../types";
 import { db, auth } from "./firebase";
 import { collection, setDoc, doc, serverTimestamp } from "firebase/firestore";
 import { deductCredits, getUserCredits } from "./creditService";
+import { trackEvent } from "./analytics";
 
 // Initialize Gemini Client Lazily
 // This prevents the app from crashing on load if the API key is missing (e.g. during build or initial setup)
 let aiInstance: GoogleGenAI | null = null;
+let fallbackCooldownUntil = 0;
 
 const getAI = () => {
   if (!aiInstance) {
@@ -14,6 +17,8 @@ const getAI = () => {
     if (!key) {
       throw new Error("Gemini API key is missing — set VITE_GEMINI_API_KEY.");
     }
+    const fp = `${key.slice(0, 6)}...${key.slice(-4)}`;
+    console.info(`Initializing Gemini client (key: ${fp})`);
     aiInstance = new GoogleGenAI({ apiKey: key });
   }
   return aiInstance;
@@ -25,7 +30,11 @@ const withRetry = async <T>(operation: () => Promise<T>, retries = 3, baseDelay 
     try {
       return await operation();
     } catch (error: any) {
-      const isOverloaded = error.status === 503 || error.code === 503 || error.message?.includes('overloaded') || error.status === 429;
+      const is429 = error?.status === 429 || error?.code === 429;
+      const isOverloaded = error?.status === 503 || error?.code === 503 || error?.message?.includes('overloaded');
+      if (is429) {
+        throw error;
+      }
       if (isOverloaded && i < retries - 1) {
         const delay = baseDelay * Math.pow(2, i);
         console.warn(`Gemini API busy (Attempt ${i + 1}/${retries}). Retrying in ${delay}ms...`);
@@ -36,6 +45,159 @@ const withRetry = async <T>(operation: () => Promise<T>, retries = 3, baseDelay 
     }
   }
   throw new Error("API Request failed after retries");
+};
+
+const shouldFallback = (error: any): boolean => {
+  try {
+    if (!error) return true;
+    const msg = String(error.message || "").toLowerCase();
+    const status = error.status || error.code;
+    if (!msg && !status) return true;
+    if (status === 429 || status === 503 || status === 500) return true;
+    if (msg.includes("rate") || msg.includes("quota") || msg.includes("overload") || msg.includes("busy") || msg.includes("timeout")) return true;
+    if (msg.includes("api key is missing")) return true;
+    return false;
+  } catch {
+    return true;
+  }
+};
+
+const getOpenRouterKey = (): string | null => {
+  const env = (import.meta as any).env || {};
+  const key = env.VITE_OPENROUTER_API_KEY || env.VITE_OR_API_KEY || null;
+  return key;
+};
+
+const mapMimeToFormat = (mime: string): string => {
+  const m = (mime || "").toLowerCase();
+  if (m.includes("wav")) return "wav";
+  if (m.includes("mp3")) return "mp3";
+  if (m.includes("ogg") || m.includes("opus")) return "ogg";
+  if (m.includes("m4a") || m.includes("mp4")) return "mp4";
+  if (m.includes("aac")) return "aac";
+  if (m.includes("flac")) return "flac";
+  if (m.includes("amr")) return "amr";
+  return "mp3";
+};
+
+const extractOpenRouterText = (json: any): string | null => {
+  if (!json) return null;
+  if (typeof json.output_text === "string" && json.output_text.trim()) return json.output_text;
+  if (json.response && typeof json.response.output_text === "string" && json.response.output_text.trim()) return json.response.output_text;
+  if (Array.isArray(json.output)) {
+    for (const item of json.output) {
+      const c = item?.content;
+      if (!c) continue;
+      if (typeof c === "string" && c.trim()) return c;
+      if (Array.isArray(c)) {
+        const part = c.find((p: any) => p?.text || p?.type === "text");
+        if (part?.text && String(part.text).trim()) return String(part.text);
+      }
+    }
+  }
+  if (Array.isArray(json.choices) && json.choices[0]?.message) {
+    const content = json.choices[0].message.content;
+    if (typeof content === "string" && content.trim()) return content;
+    if (Array.isArray(content)) {
+      const t = content.find((p: any) => p?.text || p?.type === "text");
+      if (t?.text && String(t.text).trim()) return String(t.text);
+    }
+  }
+  if (json.data && Array.isArray(json.data) && json.data[0]?.content) {
+    const c = json.data[0].content;
+    if (typeof c === "string" && c.trim()) return c;
+    if (Array.isArray(c)) {
+      const t = c.find((p: any) => p?.text || p?.type === "text");
+      if (t?.text && String(t.text).trim()) return String(t.text);
+    }
+  }
+  if (typeof json.text === "string" && json.text.trim()) return json.text;
+  return null;
+};
+
+const callOpenRouterText = async (prompt: string): Promise<string> => {
+  const key = getOpenRouterKey();
+  if (!key) throw new Error("OpenRouter API key is missing — set VITE_OPENROUTER_API_KEY.");
+  const url = "https://openrouter.ai/api/v1/responses";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    Authorization: `Bearer ${key}`,
+  };
+  try {
+    if (typeof window !== "undefined") {
+      headers["HTTP-Referer"] = window.location.origin;
+      headers["X-Title"] = "C3Talk";
+    }
+  } catch {}
+  const body = {
+    model: "google/gemini-2.5-flash",
+    max_output_tokens: 256,
+    temperature: 0,
+    input: [
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: prompt }
+        ]
+      }
+    ]
+  };
+  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`OpenRouter error: ${res.status} ${t}`);
+  }
+  const json = await res.json();
+  const text = extractOpenRouterText(json);
+  if (!text) throw new Error("Invalid response from OpenRouter");
+  return text;
+};
+
+const callOpenRouterAudio = async (audioBase64: string, mimeType: string, prompt: string): Promise<string> => {
+  const key = getOpenRouterKey();
+  if (!key) throw new Error("OpenRouter API key is missing — set VITE_OPENROUTER_API_KEY.");
+  const url = "https://openrouter.ai/api/v1/responses";
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    Accept: "application/json",
+    Authorization: `Bearer ${key}`,
+  };
+  try {
+    if (typeof window !== "undefined") {
+      headers["HTTP-Referer"] = window.location.origin;
+      headers["X-Title"] = "C3Talk";
+    }
+  } catch {}
+  const format = mapMimeToFormat(mimeType);
+  const body = {
+    model: "google/gemini-2.5-flash",
+    max_output_tokens: 512,
+    temperature: 0,
+    input: [
+      {
+        role: "user",
+        content: [
+          { type: "input_audio", input_audio: { format, data: audioBase64 } }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          { type: "input_text", text: prompt }
+        ]
+      }
+    ]
+  };
+  const res = await fetch(url, { method: "POST", headers, body: JSON.stringify(body) });
+  if (!res.ok) {
+    const t = await res.text();
+    throw new Error(`OpenRouter error: ${res.status} ${t}`);
+  }
+  const json = await res.json();
+  const text = extractOpenRouterText(json);
+  if (!text) throw new Error("Invalid response from OpenRouter");
+  return text;
 };
 
 // Simple hash function for generating consistent IDs
@@ -131,7 +293,6 @@ export const processIncomingAudio = async (
       throw new Error("Insufficient credits. Please purchase a plan.");
     }
 
-    const ai = getAI();
     const prompt = `
       You are an expert translator.
       1. Transcribe the spoken English audio. The audio might be low quality (WhatsApp Voice Note) or contain noise. Do your best to transcribe the meaning accurately.
@@ -143,36 +304,103 @@ export const processIncomingAudio = async (
         "translation": "${targetLang} text..."
       }
     `;
-
-    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: {
-        parts: [
-          {
-            inlineData: {
-              mimeType: mimeType,
-              data: audioBase64
-            }
-          },
-          { text: prompt }
-        ]
-      },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            transcription: { type: Type.STRING, description: "The English transcription of the audio" },
-            translation: { type: Type.STRING, description: `The ${targetLang} translation of the transcription` },
-          },
-          required: ["transcription", "translation"]
-        }
+    let text: string | null = null;
+    if (Date.now() < fallbackCooldownUntil) {
+      try {
+        text = await callOpenRouterAudio(audioBase64, mimeType, prompt);
+      } catch (err) {
+        console.error("OpenRouter audio call failed during cooldown", err);
+        // If backup fails, try primary once
       }
-    }));
-
-    const text = response.text;
-    if (!text) throw new Error("No response from Gemini");
-
+    }
+    try {
+      const ai = getAI();
+      const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: {
+          parts: [
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: audioBase64
+              }
+            },
+            { text: prompt }
+          ]
+        },
+        config: {
+          maxOutputTokens: 512,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              transcription: { type: Type.STRING, description: "The English transcription of the audio" },
+              translation: { type: Type.STRING, description: `The ${targetLang} translation of the transcription` },
+            },
+            required: ["transcription", "translation"]
+          }
+        }
+      }));
+      text = response.text || null;
+    } catch (err: any) {
+      if (shouldFallback(err)) {
+        const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || '';
+        const fp = key ? `${key.slice(0, 6)}...${key.slice(-4)}` : 'unknown';
+        console.warn(`Primary provider failed (key: ${fp}), falling back to OpenRouter for audio.`, err);
+        trackEvent('ai_fallback', 'ai', 'audio');
+        try {
+          text = await callOpenRouterAudio(audioBase64, mimeType, prompt);
+          fallbackCooldownUntil = Date.now() + 60_000;
+        } catch (orErr: any) {
+          const m = String(orErr?.message || "").toLowerCase();
+          const is402 = m.includes('code":402') || m.includes('requires at least $0.50') || m.includes('balance');
+          if (is402) {
+            fallbackCooldownUntil = 0;
+            for (let i = 0; i < 3 && !text; i++) {
+              try {
+                const ai2 = getAI();
+                const resp2 = await ai2.models.generateContent({
+                  model: 'gemini-2.5-flash',
+                  contents: {
+                    parts: [
+                      {
+                        inlineData: {
+                          mimeType: mimeType,
+                          data: audioBase64
+                        }
+                      },
+                      { text: prompt }
+                    ]
+                  },
+                  config: {
+                    maxOutputTokens: 512,
+                    responseMimeType: "application/json",
+                    responseSchema: {
+                      type: Type.OBJECT,
+                      properties: {
+                        transcription: { type: Type.STRING },
+                        translation: { type: Type.STRING },
+                      },
+                      required: ["transcription", "translation"]
+                    }
+                  }
+                });
+                text = resp2.text || null;
+              } catch (e2) {
+                const delay = 3000 * Math.pow(2, i);
+                await new Promise(r => setTimeout(r, delay));
+              }
+            }
+            if (!text) throw orErr;
+          } else {
+            throw orErr;
+          }
+        }
+      } else {
+        throw err;
+      }
+    }
+    if (!text) throw new Error("No response from AI provider");
     const result = cleanAndParseJSON(text);
 
     // Log to Firebase
@@ -205,27 +433,47 @@ export const processIncomingText = async (
       throw new Error("Insufficient credits. Please purchase a plan.");
     }
 
-    const ai = getAI();
     const prompt = `Translate the following English text into ${targetLang}. Return strictly JSON.`;
-
-    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: { parts: [{ text: `Text: "${text}"\n\n${prompt}` }] },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            translation: { type: Type.STRING, description: `The ${targetLang} translation` },
-          },
-          required: ["translation"]
-        }
+    let resultText: string | null = null;
+    if (Date.now() < fallbackCooldownUntil) {
+      try {
+        resultText = await callOpenRouterText(`Text: "${text}"\n\n${prompt}`);
+      } catch (err) {
+        console.error("OpenRouter text call failed during cooldown", err);
+        // If backup fails, try primary once
       }
-    }));
-
-    const resultText = response.text;
+    }
+    try {
+      const ai = getAI();
+      const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [{ text: `Text: "${text}"\n\n${prompt}` }] },
+        config: {
+          maxOutputTokens: 256,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              translation: { type: Type.STRING, description: `The ${targetLang} translation` },
+            },
+            required: ["translation"]
+          }
+        }
+      }));
+      resultText = response.text || null;
+    } catch (err: any) {
+      if (shouldFallback(err)) {
+        const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || '';
+        const fp = key ? `${key.slice(0, 6)}...${key.slice(-4)}` : 'unknown';
+        console.warn(`Primary provider failed (key: ${fp}), falling back to OpenRouter for text.`, err);
+        trackEvent('ai_fallback', 'ai', 'text');
+        resultText = await callOpenRouterText(`Text: "${text}"\n\n${prompt}`);
+        fallbackCooldownUntil = Date.now() + 60_000;
+      } else {
+        throw err;
+      }
+    }
     if (!resultText) throw new Error("No response");
-
     const result = cleanAndParseJSON(resultText);
 
     // Log to Firebase
@@ -248,30 +496,49 @@ export const translateReply = async (
   sourceLang: Language
 ): Promise<{ translation: string }> => {
   try {
-    const ai = getAI();
     const prompt = `
       Translate the following ${sourceLang} text into clear, professional English suitable for a WhatsApp reply.
       Return strictly JSON.
     `;
-
-    const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
-      model: 'gemini-2.5-flash',
-      contents: { parts: [{ text: `Original (${sourceLang}): "${text}"\n\n${prompt}` }] },
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            translation: { type: Type.STRING, description: "The English translation" },
-          },
-          required: ["translation"]
-        }
+    let resultText: string | null = null;
+    if (Date.now() < fallbackCooldownUntil) {
+      try {
+        resultText = await callOpenRouterText(`Original (${sourceLang}): "${text}"\n\n${prompt}`);
+      } catch (err) {
+        console.error("OpenRouter reply call failed during cooldown", err);
       }
-    }));
-
-    const resultText = response.text;
+    }
+    try {
+      const ai = getAI();
+      const response = await withRetry<GenerateContentResponse>(() => ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts: [{ text: `Original (${sourceLang}): "${text}"\n\n${prompt}` }] },
+        config: {
+          maxOutputTokens: 256,
+          responseMimeType: "application/json",
+          responseSchema: {
+            type: Type.OBJECT,
+            properties: {
+              translation: { type: Type.STRING, description: "The English translation" },
+            },
+            required: ["translation"]
+          }
+        }
+      }));
+      resultText = response.text || null;
+    } catch (err: any) {
+      if (shouldFallback(err)) {
+        const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || '';
+        const fp = key ? `${key.slice(0, 6)}...${key.slice(-4)}` : 'unknown';
+        console.warn(`Primary provider failed (key: ${fp}), falling back to OpenRouter for reply.`, err);
+        trackEvent('ai_fallback', 'ai', 'reply');
+        resultText = await callOpenRouterText(`Original (${sourceLang}): "${text}"\n\n${prompt}`);
+        fallbackCooldownUntil = Date.now() + 60_000;
+      } else {
+        throw err;
+      }
+    }
     if (!resultText) throw new Error("No response");
-
     const result = cleanAndParseJSON(resultText);
 
     // Log to Firebase
@@ -283,3 +550,5 @@ export const translateReply = async (
     throw new Error("Failed to translate reply.");
   }
 };
+
+ 
