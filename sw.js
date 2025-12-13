@@ -1,5 +1,12 @@
-const params = new URLSearchParams(self.location.search);
-const BUILD_VERSION = params.get('v') || 'dev';
+const getBuildVersion = () => {
+  try {
+    const url = new URL(self.location.href);
+    return url.searchParams.get('v') || 'dev';
+  } catch {
+    return 'dev';
+  }
+};
+const BUILD_VERSION = getBuildVersion();
 const CACHE_NAME = `c3talk-v${BUILD_VERSION}`;
 const SHARE_CACHE = 'share-cache';
 const urlsToCache = [
