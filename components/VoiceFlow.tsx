@@ -133,6 +133,30 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
     }
   };
 
+  const sniffAudioMime = async (file: File): Promise<string | null> => {
+    try {
+      const buf = await file.slice(0, 64).arrayBuffer();
+      const bytes = new Uint8Array(buf);
+      const asString = (start: number, len: number) =>
+        String.fromCharCode(...bytes.slice(start, start + len));
+      // OGG/Opus
+      if (asString(0, 4) === 'OggS') return 'audio/ogg';
+      // WAV RIFF/WAVE
+      if (asString(0, 4) === 'RIFF' && asString(8, 4) === 'WAVE') return 'audio/wav';
+      // FLAC
+      if (asString(0, 4) === 'fLaC') return 'audio/flac';
+      // MP4/M4A (ftyp)
+      if (asString(4, 4) === 'ftyp') return 'audio/mp4';
+      // MP3 (ID3) or frame sync 0xFF
+      if (asString(0, 3) === 'ID3' || bytes[0] === 0xff) return 'audio/mp3';
+      // AMR
+      if (asString(0, 6) === '#!AMR ') return 'audio/amr';
+      return null;
+    } catch {
+      return null;
+    }
+  };
+
   const processFile = async (file: File) => {
     // Basic validation
     if (!file.type.startsWith('audio/') && !file.name.match(/\.(mp3|wav|ogg|m4a|opus|amr|aac)$/i)) {
@@ -145,6 +169,11 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
     try {
       let workingFile = file;
       let mimeType = getMimeType(workingFile);
+      // Improve detection for shared files with missing/incorrect type or extension
+      const sniffed = await sniffAudioMime(workingFile);
+      if (sniffed && sniffed !== mimeType) {
+        mimeType = sniffed;
+      }
       if (mimeType === 'audio/ogg') {
         const wavBlob = await convertToWav(workingFile);
         workingFile = new File([wavBlob], (file.name.split('.')[0] || 'audio') + '.wav', { type: 'audio/wav' });

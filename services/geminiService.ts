@@ -11,6 +11,28 @@ import { trackEvent } from "./analytics";
 let aiInstance: GoogleGenAI | null = null;
 let fallbackCooldownUntil = 0;
 
+const getResponseText = async (resp: any): Promise<string | null> => {
+  try {
+    if (!resp) return null;
+    if (typeof resp.text === "function") {
+      const t = await resp.text();
+      if (t && String(t).trim()) return String(t);
+    }
+    if (typeof resp.text === "string") {
+      const t = resp.text;
+      if (t && String(t).trim()) return String(t);
+    }
+    const c = resp.candidates?.[0]?.content;
+    const parts = Array.isArray(c?.parts) ? c.parts : (Array.isArray(c) ? c : []);
+    for (const p of parts) {
+      if (typeof p?.text === "string" && p.text.trim()) return String(p.text);
+    }
+    return null;
+  } catch {
+    return null;
+  }
+};
+
 const getAI = () => {
   if (!aiInstance) {
     const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY;
@@ -341,7 +363,7 @@ export const processIncomingAudio = async (
           }
         }
       }));
-      text = response.text || null;
+      text = await getResponseText(response);
     } catch (err: any) {
       if (shouldFallback(err)) {
         const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || '';
@@ -385,7 +407,7 @@ export const processIncomingAudio = async (
                     }
                   }
                 });
-                text = resp2.text || null;
+                text = await getResponseText(resp2);
               } catch (e2) {
                 const delay = 3000 * Math.pow(2, i);
                 await new Promise(r => setTimeout(r, delay));
@@ -402,6 +424,16 @@ export const processIncomingAudio = async (
     }
     if (!text) throw new Error("No response from AI provider");
     const result = cleanAndParseJSON(text);
+
+    if (!result.translation || !String(result.translation).trim()) {
+      try {
+        const recovered = await callOpenRouterAudio(audioBase64, mimeType, prompt);
+        const recoveredJson = cleanAndParseJSON(recovered);
+        if (recoveredJson?.translation && String(recoveredJson.translation).trim()) {
+          result.translation = recoveredJson.translation;
+        }
+      } catch {}
+    }
 
     // Log to Firebase
     logTranslation('audio', 'English', targetLang, result.transcription, result.translation);
@@ -460,7 +492,7 @@ export const processIncomingText = async (
           }
         }
       }));
-      resultText = response.text || null;
+      resultText = await getResponseText(response);
     } catch (err: any) {
       if (shouldFallback(err)) {
         const key = (import.meta as any).env?.VITE_GEMINI_API_KEY || (import.meta as any).env?.VITE_API_KEY || '';
@@ -475,6 +507,14 @@ export const processIncomingText = async (
     }
     if (!resultText) throw new Error("No response");
     const result = cleanAndParseJSON(resultText);
+
+    if (!result.translation || !String(result.translation).trim()) {
+      const recovered = await callOpenRouterText(`Text: "${text}"\n\n${prompt}`);
+      const recoveredJson = cleanAndParseJSON(recovered);
+      if (recoveredJson?.translation && String(recoveredJson.translation).trim()) {
+        result.translation = recoveredJson.translation;
+      }
+    }
 
     // Log to Firebase
     logTranslation('text', 'English', targetLang, text, result.translation);
