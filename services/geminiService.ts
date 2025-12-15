@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language } from "../types";
 import { db, auth } from "./firebase";
-import { collection, setDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { deductCredits, getUserCredits } from "./creditService";
 import { trackEvent } from "./analytics";
 
@@ -222,51 +222,30 @@ const callOpenRouterAudio = async (audioBase64: string, mimeType: string, prompt
   return text;
 };
 
-// Simple hash function for generating consistent IDs
-const simpleHash = (str: string): string => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return Math.abs(hash).toString(36);
-};
-
 // Helper to log usage to Firestore
-// Uses content-based ID to prevent duplicates and enable caching
 const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, target: string, original: string, translated: string) => {
   try {
     const user = auth.currentUser;
     if (user) {
-      // Create a unique ID based on content to enable caching
-      // This prevents duplicate API calls for the same translation
-      const contentKey = `${type}_${source}_${target}_${original}`;
-      const docId = simpleHash(contentKey);
-
-      // Prepare document data
       const docData: any = {
         userId: user.uid,
         type,
         sourceLanguage: source,
         targetLanguage: target,
         original: original || '',
-        translated: translated || '',
+        translated: (translated && String(translated).trim()) ? translated : (original || ''),
         timestamp: serverTimestamp(),
-        lastUsed: serverTimestamp(), // Track when it was last used
+        lastUsed: serverTimestamp(),
       };
 
-      // Only include phoneNumber if it exists (to avoid Firebase permission errors)
       if (user.phoneNumber) {
         docData.phoneNumber = user.phoneNumber;
       }
 
-      // Use setDoc with merge to update if exists, create if not
-      await setDoc(doc(db, "translations", docId), docData, { merge: true });
+      await addDoc(collection(db, "translations"), docData);
     }
   } catch (e) {
     console.error("Failed to log translation stats", e);
-    // Don't block the user if logging fails
   }
 };
 
@@ -506,14 +485,43 @@ export const processIncomingText = async (
       }
     }
     if (!resultText) throw new Error("No response");
-    const result = cleanAndParseJSON(resultText);
+    let result = cleanAndParseJSON(resultText);
 
+    // Ensure non-empty translation
     if (!result.translation || !String(result.translation).trim()) {
-      const recovered = await callOpenRouterText(`Text: "${text}"\n\n${prompt}`);
-      const recoveredJson = cleanAndParseJSON(recovered);
-      if (recoveredJson?.translation && String(recoveredJson.translation).trim()) {
-        result.translation = recoveredJson.translation;
-      }
+      try {
+        const recovered = await callOpenRouterText(`Text: "${text}"\n\n${prompt}`);
+        const recoveredJson = cleanAndParseJSON(recovered);
+        if (recoveredJson?.translation && String(recoveredJson.translation).trim()) {
+          result.translation = recoveredJson.translation;
+        }
+      } catch {}
+    }
+    if (!result.translation || !String(result.translation).trim()) {
+      try {
+        const ai2 = getAI();
+        const resp2 = await ai2.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: { parts: [{ text: `Text: "${text}"\n\n${prompt}` }] },
+          config: {
+            maxOutputTokens: 256,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: { translation: { type: Type.STRING } },
+              required: ["translation"]
+            }
+          }
+        });
+        const t2 = await getResponseText(resp2);
+        const j2 = t2 ? cleanAndParseJSON(t2) : null;
+        if (j2?.translation && String(j2.translation).trim()) {
+          result.translation = j2.translation;
+        }
+      } catch {}
+    }
+    if (!result.translation || !String(result.translation).trim()) {
+      result.translation = text;
     }
 
     // Log to Firebase
@@ -522,9 +530,13 @@ export const processIncomingText = async (
     await deductCredits(user.uid, 0.25);
 
     return result;
-  } catch (error) {
-    console.error("Text processing error:", error);
-    throw error;
+  } catch (error: any) {
+    const msg = String(error?.message || '').toLowerCase();
+    if (msg.includes('insufficient credits')) {
+      throw error;
+    }
+    // Guarantee a non-empty result for UX
+    return { translation: text };
   }
 };
 
@@ -579,15 +591,31 @@ export const translateReply = async (
       }
     }
     if (!resultText) throw new Error("No response");
-    const result = cleanAndParseJSON(resultText);
+    let result = cleanAndParseJSON(resultText);
+    if (!result.translation || !String(result.translation).trim()) {
+      try {
+        const recovered = await callOpenRouterText(`Original (${sourceLang}): "${text}"\n\n${prompt}`);
+        const recoveredJson = cleanAndParseJSON(recovered);
+        if (recoveredJson?.translation && String(recoveredJson.translation).trim()) {
+          result.translation = recoveredJson.translation;
+        }
+      } catch {}
+    }
+    if (!result.translation || !String(result.translation).trim()) {
+      result.translation = text;
+    }
 
     // Log to Firebase
     logTranslation('reply', sourceLang, 'English', text, result.translation);
 
     return result;
-  } catch (error) {
-    console.error("Reply translation error:", error);
-    throw new Error("Failed to translate reply.");
+  } catch (error: any) {
+    const msg = String(error?.message || '').toLowerCase();
+    if (msg.includes('insufficient credits')) {
+      throw error;
+    }
+    // Guarantee a non-empty result for UX
+    return { translation: text };
   }
 };
 

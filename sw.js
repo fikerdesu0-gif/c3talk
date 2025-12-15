@@ -9,18 +9,10 @@ const getBuildVersion = () => {
 const BUILD_VERSION = getBuildVersion();
 const CACHE_NAME = `c3talk-v${BUILD_VERSION}`;
 const SHARE_CACHE = 'share-cache';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json'
-];
+const urlsToCache = [];
 
 self.addEventListener('install', event => {
   self.skipWaiting();
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
-  );
 });
 
 self.addEventListener('activate', event => {
@@ -73,31 +65,17 @@ self.addEventListener('fetch', event => {
   }
 
   if (event.request.mode === 'navigate') {
-    event.respondWith(
-      (async () => {
-        try {
-          const response = await fetch(event.request);
-          const cache = await caches.open(CACHE_NAME);
-          await cache.put(event.request, response.clone());
-          return response;
-        } catch {
-          const cached = await caches.match(event.request);
-          return cached || caches.match('/index.html');
-        }
-      })()
-    );
+    event.respondWith(fetch(event.request));
     return;
   }
 
   event.respondWith(
     (async () => {
-      const cached = await caches.match(event.request);
-      if (cached) return cached;
       try {
         const resp = await fetch(event.request);
         return resp;
       } catch {
-        return cached || Response.error();
+        return Response.error();
       }
     })()
   );
