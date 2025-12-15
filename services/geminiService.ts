@@ -2,7 +2,7 @@
 import { GoogleGenAI, Type, GenerateContentResponse } from "@google/genai";
 import { Language } from "../types";
 import { db, auth } from "./firebase";
-import { collection, setDoc, doc, serverTimestamp } from "firebase/firestore";
+import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { deductCredits, getUserCredits } from "./creditService";
 import { trackEvent } from "./analytics";
 
@@ -222,29 +222,11 @@ const callOpenRouterAudio = async (audioBase64: string, mimeType: string, prompt
   return text;
 };
 
-// Simple hash function for generating consistent IDs
-const simpleHash = (str: string): string => {
-  let hash = 0;
-  for (let i = 0; i < str.length; i++) {
-    const char = str.charCodeAt(i);
-    hash = ((hash << 5) - hash) + char;
-    hash = hash & hash; // Convert to 32-bit integer
-  }
-  return Math.abs(hash).toString(36);
-};
-
 // Helper to log usage to Firestore
-// Uses content-based ID to prevent duplicates and enable caching
 const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, target: string, original: string, translated: string) => {
   try {
     const user = auth.currentUser;
     if (user) {
-      // Create a unique ID based on content to enable caching
-      // This prevents duplicate API calls for the same translation
-      const contentKey = `${type}_${source}_${target}_${original}`;
-      const docId = simpleHash(contentKey);
-
-      // Prepare document data
       const docData: any = {
         userId: user.uid,
         type,
@@ -253,20 +235,17 @@ const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, 
         original: original || '',
         translated: translated || '',
         timestamp: serverTimestamp(),
-        lastUsed: serverTimestamp(), // Track when it was last used
+        lastUsed: serverTimestamp(),
       };
 
-      // Only include phoneNumber if it exists (to avoid Firebase permission errors)
       if (user.phoneNumber) {
         docData.phoneNumber = user.phoneNumber;
       }
 
-      // Use setDoc with merge to update if exists, create if not
-      await setDoc(doc(db, "translations", docId), docData, { merge: true });
+      await addDoc(collection(db, "translations"), docData);
     }
   } catch (e) {
     console.error("Failed to log translation stats", e);
-    // Don't block the user if logging fails
   }
 };
 

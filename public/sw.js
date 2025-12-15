@@ -9,18 +9,10 @@ const getBuildVersion = () => {
 const BUILD_VERSION = getBuildVersion();
 const CACHE_NAME = `c3talk-v${BUILD_VERSION}`;
 const SHARE_CACHE = 'share-cache';
-const urlsToCache = [
-  '/',
-  '/index.html',
-  '/manifest.json'
-];
+const urlsToCache = [];
 
 self.addEventListener('install', event => {
-  self.skipWaiting(); // Force activation of new SW
-  event.waitUntil(
-    caches.open(CACHE_NAME)
-      .then(cache => cache.addAll(urlsToCache))
-  );
+  self.skipWaiting();
 });
 
 self.addEventListener('activate', event => {
@@ -35,7 +27,7 @@ self.addEventListener('activate', event => {
       );
     })
   );
-  self.clients.claim(); // Take control of all clients immediately
+  self.clients.claim();
   self.clients.matchAll({ type: 'window', includeUncontrolled: true }).then(clients => {
     clients.forEach(client => {
       client.postMessage({ type: 'SW_ACTIVATED', version: BUILD_VERSION });
@@ -65,7 +57,6 @@ self.addEventListener('fetch', event => {
 
           return Response.redirect('/?action=share-voice', 303);
         } catch (e) {
-          console.error('Share target processing failed', e);
           return Response.redirect('/', 303);
         }
       })()
@@ -74,31 +65,17 @@ self.addEventListener('fetch', event => {
   }
 
   if (event.request.mode === 'navigate') {
-    event.respondWith(
-      (async () => {
-        try {
-          const response = await fetch(event.request);
-          const cache = await caches.open(CACHE_NAME);
-          await cache.put(event.request, response.clone());
-          return response;
-        } catch {
-          const cached = await caches.match(event.request);
-          return cached || caches.match('/index.html');
-        }
-      })()
-    );
+    event.respondWith(fetch(event.request));
     return;
   }
 
   event.respondWith(
     (async () => {
-      const cached = await caches.match(event.request);
-      if (cached) return cached;
       try {
         const resp = await fetch(event.request);
         return resp;
       } catch {
-        return cached || Response.error();
+        return Response.error();
       }
     })()
   );
