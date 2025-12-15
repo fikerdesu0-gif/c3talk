@@ -25,6 +25,9 @@ export const TextFlow: React.FC<TextFlowProps> = ({ language, onBack, credits, o
       setShowPaywall(true);
       return;
     }
+    
+    // Clear previous translation and set processing state
+    setTranslation('');
     setProcessingState({ status: 'processing' });
 
     try {

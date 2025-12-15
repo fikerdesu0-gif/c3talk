@@ -30,8 +30,7 @@
       // Disable automatic page view measurement to handle it manually for SPA routing
       gtag('config', 'G-RZLNZ1TP76', { send_page_view: false });
     </script>
-    
-    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="/src/style.css" rel="stylesheet" />
     <style>
       /* Mobile-first layout helper */
       body {
@@ -72,7 +71,6 @@
         to { opacity: 1; transform: translateY(0); }
       }
     </style>
-    <link rel="preload" href="/index.tsx" as="script" />
     <script>
       // Polyfill for process.env to prevent ReferenceError on mobile browsers
       window.process = window.process || { env: {} };

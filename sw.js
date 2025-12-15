@@ -46,6 +46,10 @@ self.addEventListener('activate', event => {
 self.addEventListener('fetch', event => {
   const url = new URL(event.request.url);
 
+  if (url.origin !== self.location.origin) {
+    return;
+  }
+
   if (event.request.method === 'POST' && url.pathname.endsWith('/share-target/')) {
     event.respondWith(
       (async () => {
@@ -86,6 +90,15 @@ self.addEventListener('fetch', event => {
   }
 
   event.respondWith(
-    caches.match(event.request).then(response => response || fetch(event.request))
+    (async () => {
+      const cached = await caches.match(event.request);
+      if (cached) return cached;
+      try {
+        const resp = await fetch(event.request);
+        return resp;
+      } catch {
+        return cached || Response.error();
+      }
+    })()
   );
 });
