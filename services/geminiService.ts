@@ -233,7 +233,7 @@ const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, 
         sourceLanguage: source,
         targetLanguage: target,
         original: original || '',
-        translated: translated || '',
+        translated: (translated && String(translated).trim()) ? translated : (original || ''),
         timestamp: serverTimestamp(),
         lastUsed: serverTimestamp(),
       };
@@ -485,14 +485,43 @@ export const processIncomingText = async (
       }
     }
     if (!resultText) throw new Error("No response");
-    const result = cleanAndParseJSON(resultText);
+    let result = cleanAndParseJSON(resultText);
 
+    // Ensure non-empty translation
     if (!result.translation || !String(result.translation).trim()) {
-      const recovered = await callOpenRouterText(`Text: "${text}"\n\n${prompt}`);
-      const recoveredJson = cleanAndParseJSON(recovered);
-      if (recoveredJson?.translation && String(recoveredJson.translation).trim()) {
-        result.translation = recoveredJson.translation;
-      }
+      try {
+        const recovered = await callOpenRouterText(`Text: "${text}"\n\n${prompt}`);
+        const recoveredJson = cleanAndParseJSON(recovered);
+        if (recoveredJson?.translation && String(recoveredJson.translation).trim()) {
+          result.translation = recoveredJson.translation;
+        }
+      } catch {}
+    }
+    if (!result.translation || !String(result.translation).trim()) {
+      try {
+        const ai2 = getAI();
+        const resp2 = await ai2.models.generateContent({
+          model: 'gemini-2.5-flash',
+          contents: { parts: [{ text: `Text: "${text}"\n\n${prompt}` }] },
+          config: {
+            maxOutputTokens: 256,
+            responseMimeType: "application/json",
+            responseSchema: {
+              type: Type.OBJECT,
+              properties: { translation: { type: Type.STRING } },
+              required: ["translation"]
+            }
+          }
+        });
+        const t2 = await getResponseText(resp2);
+        const j2 = t2 ? cleanAndParseJSON(t2) : null;
+        if (j2?.translation && String(j2.translation).trim()) {
+          result.translation = j2.translation;
+        }
+      } catch {}
+    }
+    if (!result.translation || !String(result.translation).trim()) {
+      result.translation = text;
     }
 
     // Log to Firebase
@@ -501,9 +530,13 @@ export const processIncomingText = async (
     await deductCredits(user.uid, 0.25);
 
     return result;
-  } catch (error) {
-    console.error("Text processing error:", error);
-    throw error;
+  } catch (error: any) {
+    const msg = String(error?.message || '').toLowerCase();
+    if (msg.includes('insufficient credits')) {
+      throw error;
+    }
+    // Guarantee a non-empty result for UX
+    return { translation: text };
   }
 };
 
@@ -558,15 +591,31 @@ export const translateReply = async (
       }
     }
     if (!resultText) throw new Error("No response");
-    const result = cleanAndParseJSON(resultText);
+    let result = cleanAndParseJSON(resultText);
+    if (!result.translation || !String(result.translation).trim()) {
+      try {
+        const recovered = await callOpenRouterText(`Original (${sourceLang}): "${text}"\n\n${prompt}`);
+        const recoveredJson = cleanAndParseJSON(recovered);
+        if (recoveredJson?.translation && String(recoveredJson.translation).trim()) {
+          result.translation = recoveredJson.translation;
+        }
+      } catch {}
+    }
+    if (!result.translation || !String(result.translation).trim()) {
+      result.translation = text;
+    }
 
     // Log to Firebase
     logTranslation('reply', sourceLang, 'English', text, result.translation);
 
     return result;
-  } catch (error) {
-    console.error("Reply translation error:", error);
-    throw new Error("Failed to translate reply.");
+  } catch (error: any) {
+    const msg = String(error?.message || '').toLowerCase();
+    if (msg.includes('insufficient credits')) {
+      throw error;
+    }
+    // Guarantee a non-empty result for UX
+    return { translation: text };
   }
 };
 
