@@ -180,7 +180,7 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
         mimeType = 'audio/wav';
       }
       const base64 = await fileToGenerativePart(workingFile);
-      console.log(`Processing file: ${workingFile.name} as ${mimeType}`);
+      console.log(`Processing file: ${workingFile.name}, original type: ${file.type}, processed mimeType: ${mimeType}`);
       const result = await processIncomingAudio(base64, mimeType, language);
 
       setTranscription(result.transcription);
