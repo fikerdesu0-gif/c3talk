@@ -174,13 +174,19 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
       if (sniffed && sniffed !== mimeType) {
         mimeType = sniffed;
       }
-      if (mimeType === 'audio/ogg') {
-        const wavBlob = await convertToWav(workingFile);
-        workingFile = new File([wavBlob], (file.name.split('.')[0] || 'audio') + '.wav', { type: 'audio/wav' });
-        mimeType = 'audio/wav';
+      // Convert all non-WAV audio to WAV to ensure consistent input for the AI model
+      if (mimeType !== 'audio/wav') {
+        try {
+          const wavBlob = await convertToWav(workingFile);
+          workingFile = new File([wavBlob], (file.name.split('.')[0] || 'audio') + '.wav', { type: 'audio/wav' });
+          mimeType = 'audio/wav';
+        } catch (conversionError) {
+          console.error("Error converting to WAV, proceeding with original mimeType:", conversionError);
+          // Optionally, you could set an error state here or try to proceed with the original file
+        }
       }
       const base64 = await fileToGenerativePart(workingFile);
-      console.log(`Processing file: ${workingFile.name}, original type: ${file.type}, processed mimeType: ${mimeType}`);
+      console.log(`Processing file: ${workingFile.name} as ${mimeType}`);
       const result = await processIncomingAudio(base64, mimeType, language);
 
       setTranscription(result.transcription);
