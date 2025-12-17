@@ -5,6 +5,7 @@ import { Paywall } from './Paywall';
 import { ReplySection } from './ReplySection';
 import { Language, ProcessingState } from '../types';
 import { fileToGenerativePart, processIncomingAudio } from '../services/geminiService';
+import { DISABLE_CREDIT_DEDUCTION } from "../config";
 
 interface VoiceFlowProps {
   language: Language;
@@ -45,7 +46,7 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
         else if (blob.type.includes('mp4') || blob.type.includes('m4a')) fileName += ".m4a";
         else fileName += ".mp3";
         const file = new File([blob], fileName, { type: blob.type });
-        if (credits !== null && credits <= 0) {
+        if (credits !== null && credits <= 0 && !DISABLE_CREDIT_DEDUCTION) {
           setShowPaywall(true);
         } else {
           await processFile(file);
@@ -194,7 +195,7 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
       setProcessingState({ status: 'success' });
     } catch (e: any) {
       console.error("Processing failed", e);
-      if (e?.message?.toLowerCase().includes('insufficient credits')) {
+      if (e?.message?.toLowerCase().includes('insufficient credits') && !DISABLE_CREDIT_DEDUCTION) {
         setShowPaywall(true);
         setProcessingState({ status: 'idle' });
       } else {
@@ -206,7 +207,7 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
   const handleFileSelect = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (!file) return;
-    if (credits !== null && credits <= 0) {
+    if (credits !== null && credits <= 0 && !DISABLE_CREDIT_DEDUCTION) {
       setShowPaywall(true);
       return;
     }

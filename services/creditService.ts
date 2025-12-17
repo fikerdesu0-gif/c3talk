@@ -1,5 +1,6 @@
 import { db, auth } from "./firebase";
 import { doc, getDoc, setDoc, updateDoc, increment, runTransaction, serverTimestamp } from "firebase/firestore";
+import { DISABLE_CREDIT_DEDUCTION } from "../config";
 
 export interface UserCredits {
     balance: number;
@@ -89,6 +90,10 @@ export const getUserCredits = async (userId: string): Promise<number> => {
 // Deduct credits
 // Returns true if successful, false if insufficient funds
 export const deductCredits = async (userId: string, amount: number): Promise<boolean> => {
+    if (DISABLE_CREDIT_DEDUCTION) {
+        console.log("Credit deduction is disabled. Skipping deduction.");
+        return true;
+    }
     const user = auth.currentUser;
     if (user?.isAnonymous) {
         const current = getGuestCredits();
