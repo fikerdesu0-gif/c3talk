@@ -10,7 +10,8 @@ import { trackPageView } from './services/analytics';
 import { auth, db } from './services/firebase';
 import { onAuthStateChanged, signInAnonymously } from 'firebase/auth';
 import { doc, onSnapshot } from 'firebase/firestore';
-import { initializeUserCredits, getGuestCredits } from './services/creditService';
+import { initializeUserCredits, getUserCredits, getGuestCredits } from "./services/creditService";
+import { DISABLE_CREDIT_DEDUCTION } from "./config";
 
 // Interface for the PWA install event
 interface BeforeInstallPromptEvent extends Event {

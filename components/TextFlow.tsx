@@ -5,6 +5,7 @@ import { Paywall } from './Paywall';
 import { ReplySection } from './ReplySection';
 import { Language, ProcessingState } from '../types';
 import { processIncomingText } from '../services/geminiService';
+import { DISABLE_CREDIT_DEDUCTION } from "../config";
 
 interface TextFlowProps {
   language: Language;
@@ -21,7 +22,7 @@ export const TextFlow: React.FC<TextFlowProps> = ({ language, onBack, credits, o
 
   const handleTranslate = async () => {
     if (!inputEnglish.trim()) return;
-    if (credits !== null && credits <= 0) {
+    if (credits !== null && credits <= 0 && !DISABLE_CREDIT_DEDUCTION) {
       setShowPaywall(true);
       return;
     }
@@ -35,7 +36,7 @@ export const TextFlow: React.FC<TextFlowProps> = ({ language, onBack, credits, o
       setTranslation(result.translation);
       setProcessingState({ status: 'success' });
     } catch (e: any) {
-      if (e?.message?.toLowerCase().includes('insufficient credits')) {
+      if (e?.message?.toLowerCase().includes('insufficient credits') && !DISABLE_CREDIT_DEDUCTION) {
         setShowPaywall(true);
         setProcessingState({ status: 'idle' });
       } else {

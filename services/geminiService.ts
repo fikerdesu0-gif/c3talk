@@ -5,6 +5,7 @@ import { db, auth } from "./firebase";
 import { collection, addDoc, serverTimestamp } from "firebase/firestore";
 import { deductCredits, getUserCredits } from "./creditService";
 import { trackEvent } from "./analytics";
+import { DISABLE_CREDIT_DEDUCTION } from "../config";
 
 // Initialize Gemini Client Lazily
 // This prevents the app from crashing on load if the API key is missing (e.g. during build or initial setup)
@@ -251,13 +252,37 @@ const logTranslation = async (type: 'audio' | 'text' | 'reply', source: string, 
 
 // Helper to clean JSON string from Markdown backticks
 const cleanAndParseJSON = (text: string) => {
+  let jsonString = text;
   try {
-    // Remove ```json ... ``` or just ``` ... ```
-    const cleaned = text.replace(/```json/g, '').replace(/```/g, '').trim();
-    return JSON.parse(cleaned);
+    // 1. Attempt to find the JSON object within markdown code blocks
+    const jsonMatch = text.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
+    if (jsonMatch && jsonMatch[1]) {
+      jsonString = jsonMatch[1];
+    } else {
+      // 2. If not in markdown, try to find the first and last curly braces
+      const firstBrace = text.indexOf('{');
+      const lastBrace = text.lastIndexOf('}');
+      if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
+        jsonString = text.substring(firstBrace, lastBrace + 1);
+      } else {
+        // 3. If still not found, try to find the first and last square brackets (for array JSON)
+        const firstBracket = text.indexOf('[');
+        const lastBracket = text.lastIndexOf(']');
+        if (firstBracket !== -1 && lastBracket !== -1 && lastBracket > firstBracket) {
+          jsonString = text.substring(firstBracket, lastBracket + 1);
+        }
+      }
+    }
+
+    // Clean up any remaining backticks or markdown that might have been missed
+    jsonString = jsonString.replace(/```json/g, '').replace(/```/g, '').trim();
+
+    // Attempt to parse the extracted string
+    const parsed = JSON.parse(jsonString);
+    return parsed;
   } catch (e) {
-    console.error("JSON Parse Error on text:", text);
-    throw new Error("Failed to parse response from AI.");
+    console.error("JSON Parse Error on text:", jsonString, "Original text:", text, "Error:", e);
+    throw new Error("Failed to parse response from AI. Original text: " + text);
   }
 };
 
@@ -289,9 +314,11 @@ export const processIncomingAudio = async (
     if (!user) throw new Error("User not authenticated");
 
     // Check credits
-    const credits = await getUserCredits(user.uid);
-    if (credits < 1) {
-      throw new Error("Insufficient credits. Please purchase a plan.");
+    if (!DISABLE_CREDIT_DEDUCTION) {
+      const credits = await getUserCredits(user.uid);
+      if (credits < 1) {
+        throw new Error("Insufficient credits. Please purchase a plan.");
+      }
     }
 
     const prompt = `
