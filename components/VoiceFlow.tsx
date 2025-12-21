@@ -4,7 +4,7 @@ import { Header } from './Header';
 import { Paywall } from './Paywall';
 import { ReplySection } from './ReplySection';
 import { Language, ProcessingState } from '../types';
-import { fileToGenerativePart, processIncomingAudio } from '../services/geminiService';
+import { fileToBase64, processIncomingAudio } from '../services/aiService';
 import { DISABLE_CREDIT_DEDUCTION } from "../config";
 
 interface VoiceFlowProps {
@@ -186,7 +186,7 @@ export const VoiceFlow: React.FC<VoiceFlowProps> = ({ language, onBack, autoLoad
           // Optionally, you could set an error state here or try to proceed with the original file
         }
       }
-      const base64 = await fileToGenerativePart(workingFile);
+      const base64 = await fileToBase64(workingFile);
       console.log(`Processing file: ${workingFile.name} as ${mimeType}`);
       const result = await processIncomingAudio(base64, mimeType, language);
 

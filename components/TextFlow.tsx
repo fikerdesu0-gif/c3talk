@@ -4,7 +4,7 @@ import { Header } from './Header';
 import { Paywall } from './Paywall';
 import { ReplySection } from './ReplySection';
 import { Language, ProcessingState } from '../types';
-import { processIncomingText } from '../services/geminiService';
+import { processIncomingText } from '../services/aiService';
 import { DISABLE_CREDIT_DEDUCTION } from "../config";
 
 interface TextFlowProps {
