@@ -19,7 +19,6 @@ export default defineConfig({
         manualChunks: {
           'react-vendor': ['react', 'react-dom'],
           'firebase-vendor': ['firebase/app', 'firebase/auth', 'firebase/firestore'],
-          'ai-vendor': ['@google/genai'],
           'icons': ['lucide-react'],
         },
         chunkFileNames: 'assets/[name]-[hash].js',
@@ -31,7 +30,6 @@ export default defineConfig({
   },
   optimizeDeps: {
     include: ['react', 'react-dom'],
-    exclude: ['@google/genai'],
   },
 });
 
