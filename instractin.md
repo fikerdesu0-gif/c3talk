@@ -14,13 +14,13 @@ C3Talk is a WhatsApp voice note translation PWA targeting Amharic/Oromo speakers
 ## Critical Issues Identified
 
 ### 1. Bundle & Startup Performance
-- 966KB bundle includes Firebase (400KB+), Gemini SDK, React, lucide-react icons
+- 966KB bundle includes Firebase (400KB+), OpenRouter API, React, lucide-react icons
 - Tailwind CDN script is render-blocking in `<head>`
 - No code splitting — entire app loaded upfront
 - No preconnect hints for API domains
 
 ### 2. AI/Translation Speed
-- `geminiService.ts`: synchronous retry with exponential backoff (up to 24s delay)
+- `aiService.ts`: synchronous retry logic
 - No request deduplication or caching for identical translations
 - OGG→WAV conversion runs on main thread, blocking UI
 - Full audio file read into memory before processing
@@ -51,7 +51,8 @@ C3Talk is a WhatsApp voice note translation PWA targeting Amharic/Oromo speakers
 - Dynamic import Firebase auth/firestore
 - Show UI immediately, load auth in background
 - Add preconnect hints:
-  - `generativelanguage.googleapis.com`
+  - `generativelanguage.googleapis.com` (legacy)
+  - `openrouter.ai`
   - `firestore.googleapis.com`
   - `identitytoolkit.googleapis.com`
 - Optimize Vite build config

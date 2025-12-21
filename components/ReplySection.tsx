@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { Copy, Send, ArrowRight, Loader2 } from 'lucide-react';
 import { Language } from '../types';
-import { translateReply } from '../services/geminiService';
+import { translateReply } from '../services/aiService';
 
 interface ReplySectionProps {
   language: Language;
